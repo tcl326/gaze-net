@@ -343,7 +343,7 @@ class GazeDataGenerator(object):
                             interpolation='nearest'):
         return DirectoryIterator(
             directory, self,
-            time_steps=32,
+            time_steps=time_steps,
             target_size=target_size, color_mode=color_mode,
             classes=classes, class_mode=class_mode,
             data_format=self.data_format,
@@ -1072,7 +1072,7 @@ class DirectoryIterator(Iterator):
         # print(gaze_x.shape)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
-            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=self.target_size, interpolation='nearest')
+            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=self.time_steps, time_skip=1, target_size=self.target_size, interpolation='nearest')
             # print(gaze_sequence.shape)
             # print(img_sequence.shape)
             # if self.image_data_generator.preprocessing_function:
