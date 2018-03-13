@@ -70,21 +70,21 @@ class GazeNet():
         x = Dropout(0.5)(x)
         x = Dense(4096, activation = 'relu')(x)
         print(x)
-        mlp = Dropout(0.5)(x)
+        output = Dropout(0.5)(x)
 
-        print(mlp)
+        # print(mlp)
         # model = Model(inputs = input_img,outputs = mlp)
 
-        reshaped_layer = TimeDistributed(Dense(4096),input_shape = (4,32,4096))
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print(reshaped_layer)
+        # reshaped_layer = TimeDistributed(Dense(4096),input_shape = (4,32,4096))
+        # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        # print(reshaped_layer)
         def mean_value(input):
             return [np.mean(input[i:i+timestep]) for i in range((len(input)/timestep))]
 
 
         # LSTM
-        LSTMLayer = LSTM(6,activation = 'tanh',recurrent_activation = 'hard_sigmoid')(reshaped_layer)
-        output = Lambda(mean_value)(LSTMLayer)
+        # LSTMLayer = LSTM(6,activation = 'tanh',recurrent_activation = 'hard_sigmoid')(reshaped_layer)
+        # output = Lambda(mean_value)(LSTMLayer)
         model = Model(inputs = input_img,outputs = output)
         adam = optimizers.Adam(lr = self.learning_rate)
         model.compile(loss='categorical_crossentropy', optimizer='adam')
