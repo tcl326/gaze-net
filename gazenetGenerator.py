@@ -903,7 +903,7 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
     fnames = list(_iter_valid_files(interaction_path, white_list_formats, False))
     gaze_sequence = load_gaze_sequence(interaction_path)
     start = np.random.choice(len(fnames) - time_steps * time_skip, size=1)[0]
-    print(interaction_path)
+    # print(interaction_path)
     for i in xrange(start, start+time_steps*time_skip, time_skip):
         root, fname = fnames[i]
         img_path = os.path.join(root, fname)
@@ -1068,13 +1068,13 @@ class DirectoryIterator(Iterator):
         gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
-        print(images_x.shape)
-        print(gaze_x.shape)
+        # print(images_x.shape)
+        # print(gaze_x.shape)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
             img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=self.target_size, interpolation='nearest')
-            print(gaze_sequence.shape)
-            print(img_sequence.shape)
+            # print(gaze_sequence.shape)
+            # print(img_sequence.shape)
             # if self.image_data_generator.preprocessing_function:
             #     img = self.image_data_generator.preprocessing_function(img)
             # if self.target_size is not None:
