@@ -119,7 +119,6 @@ def img_to_array(img, data_format=None):
         raise ValueError('Unsupported image shape: ', x.shape)
     return x
 
-
 def load_img(path, grayscale=False, target_size=None,
              interpolation='nearest'):
     """Loads an image into PIL format.
@@ -332,6 +331,7 @@ class GazeDataGenerator(object):
             subset=subset)
 
     def flow_from_directory(self, directory,
+                            time_steps=32,
                             target_size=(256, 256), color_mode='rgb',
                             classes=None, class_mode='categorical',
                             batch_size=32, shuffle=True, seed=None,
@@ -343,6 +343,7 @@ class GazeDataGenerator(object):
                             interpolation='nearest'):
         return DirectoryIterator(
             directory, self,
+            time_steps=32,
             target_size=target_size, color_mode=color_mode,
             classes=classes, class_mode=class_mode,
             data_format=self.data_format,
@@ -785,10 +786,20 @@ def _iter_valid_interaction(directory, white_list_formats, time_steps, follow_li
                 valid_interactions.append(inter)
     return valid_interactions
 
+def _iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links):
+    # Return List of Valid Interaction in the Directory (Does not go into Subdirectory)
+    valid_interactions = []
+    interactions = [os.path.join(directory, dirname) for dirname in os.listdir(os.path.join(directory))]
+    # print(interactions)
+    for inter in interactions:
+        if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) >= time_steps:
+            valid_interactions.append(inter)
+    return valid_interactions
 
-def _count_interaction_number_in_directory(directory, white_list_formats, batch_size, split, follow_links):
+def _count_valid_interaction_number_in_directory(directory, white_list_formats, time_steps, split, follow_links):
     # Count Number of Valid Interactions
-    num_interations = len(_iter_valid_interaction(directory, white_list_formats, batch_size, follow_links))
+    # print(directory)
+    num_interations = len(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links))
     if split:
         start, stop = int(split[0] * num_interations), int(split[1] * num_interations)
     else:
@@ -858,9 +869,49 @@ def _list_valid_filenames_in_directory(directory, white_list_formats, split,
 
     return classes, filenames
 
-def _list_valid_filenames_in_directory(directory, white_list_formats, split,
+def _list_valid_interactions_in_directory(directory, white_list_formats, time_steps, split,
                                        class_indices, follow_links):
-    
+    # List directory names with valid interactions in the 'class' directory
+
+    dirname = os.path.basename(directory)
+    if split:
+        num_interactions = len(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links))
+        start, stop = int(split[0] * num_interactions), int(split[1] * num_interactions)
+        valid_files = list(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links))[start: stop]
+    else:
+        valid_files = _iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links)
+
+    classes = []
+    internames = []
+    for absolute_path in valid_files:
+        classes.append(class_indices[dirname])
+        # absolute_path = os.path.join(root, fname)
+        # relative_path = os.path.join(dirname, os.path.relpath(absolute_path, directory))
+        internames.append(absolute_path)
+
+    return classes, internames
+
+def load_gaze_sequence(interaction_path, gaze_file_name='gaze.txt'):
+    results = []
+    with open(os.path.join(interaction_path, gaze_file_name)) as inputfile:
+        for line in inputfile:
+            results.append(float(line))
+    return np.array(results).reshape((-1,3))
+
+def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=None, interpolation='nearest'):
+    img_sequence = []
+    fnames = list(_iter_valid_files(interaction_path, white_list_formats, False))
+    gaze_sequence = load_gaze_sequence(interaction_path)
+    start = np.random.choice(len(fnames) - time_steps * time_skip, size=1)[0]
+    print(interaction_path)
+    for i in xrange(start, start+time_steps*time_skip, time_skip):
+        root, fname = fnames[i]
+        img_path = os.path.join(root, fname)
+        # print (img_path)
+        img = load_img(img_path, grayscale, target_size, interpolation)
+        x = img_to_array(img, data_format=None)
+        img_sequence.append(x)
+    return np.array(img_sequence), gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
 
 class DirectoryIterator(Iterator):
     """Iterator capable of reading images from a directory on disk.
@@ -907,6 +958,7 @@ class DirectoryIterator(Iterator):
     """
 
     def __init__(self, directory, image_data_generator,
+                 time_steps=32,
                  target_size=(256, 256), color_mode='rgb',
                  classes=None, class_mode='categorical',
                  batch_size=32, shuffle=True, seed=None,
@@ -947,6 +999,7 @@ class DirectoryIterator(Iterator):
         self.save_prefix = save_prefix
         self.save_format = save_format
         self.interpolation = interpolation
+        self.time_steps = time_steps
 
         if subset is not None:
             validation_split = self.image_data_generator._validation_split
@@ -961,7 +1014,7 @@ class DirectoryIterator(Iterator):
             split = None
         self.subset = subset
 
-        white_list_formats = {'png', 'jpg', 'jpeg', 'bmp', 'ppm', 'tif', 'tiff'}
+        self.white_list_formats = {'png', 'jpg', 'jpeg', 'bmp', 'ppm', 'tif', 'tiff'}
 
         # first, count the number of samples and classes
         self.samples = 0
@@ -975,30 +1028,35 @@ class DirectoryIterator(Iterator):
         self.class_indices = dict(zip(classes, range(len(classes))))
 
         pool = multiprocessing.pool.ThreadPool()
-        function_partial = partial(_count_valid_files_in_directory,
-                                   white_list_formats=white_list_formats,
+        function_partial = partial(_count_valid_interaction_number_in_directory,
+                                   time_steps=time_steps,
+                                   white_list_formats=self.white_list_formats,
                                    follow_links=follow_links,
                                    split=split)
         self.samples = sum(pool.map(function_partial,
                                     (os.path.join(directory, subdir)
                                      for subdir in classes)))
 
-        print('Found %d images belonging to %d classes.' % (self.samples, self.num_classes))
+        print('Found %d Interactions belonging to %d classes.' % (self.samples, self.num_classes))
 
         # second, build an index of the images in the different class subfolders
         results = []
 
-        self.filenames = []
+        self.internames = []
+        # print(self.samples)
         self.classes = np.zeros((self.samples,), dtype='int32')
         i = 0
         for dirpath in (os.path.join(directory, subdir) for subdir in classes):
-            results.append(pool.apply_async(_list_valid_filenames_in_directory,
-                                            (dirpath, white_list_formats, split,
+            results.append(pool.apply_async(_list_valid_interactions_in_directory,
+                                            (dirpath, self.white_list_formats, self.time_steps, split,
                                              self.class_indices, follow_links)))
         for res in results:
-            classes, filenames = res.get()
+            classes, internames = res.get()
+            # print(self.classes)
+            # print(classes)
+            # print(internames)
             self.classes[i:i + len(classes)] = classes
-            self.filenames += filenames
+            self.internames += internames
             i += len(classes)
 
         pool.close()
@@ -1006,32 +1064,35 @@ class DirectoryIterator(Iterator):
         super(DirectoryIterator, self).__init__(self.samples, batch_size, shuffle, seed)
 
     def _get_batches_of_transformed_samples(self, index_array):
-        images_x = np.zeros((len(index_array),) + self.image_shape, dtype=K.floatx())
+        images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
+        gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
+        print(images_x.shape)
+        print(gaze_x.shape)
         for i, j in enumerate(index_array):
-            fname = self.filenames[j]
-            img = load_img(os.path.join(self.directory, fname),
-                           grayscale=grayscale,
-                           target_size=None,
-                           interpolation=self.interpolation)
-            if self.image_data_generator.preprocessing_function:
-                img = self.image_data_generator.preprocessing_function(img)
-            if self.target_size is not None:
-                width_height_tuple = (self.target_size[1], self.target_size[0])
-                if img.size != width_height_tuple:
-                    if self.interpolation not in _PIL_INTERPOLATION_METHODS:
-                        raise ValueError(
-                            'Invalid interpolation method {} specified. Supported '
-                            'methods are {}'.format(
-                                self.interpolation,
-                                ", ".join(_PIL_INTERPOLATION_METHODS.keys())))
-                    resample = _PIL_INTERPOLATION_METHODS[self.interpolation]
-                    img = img.resize(width_height_tuple, resample)
-            x = img_to_array(img, data_format=self.data_format)
-            x = self.image_data_generator.random_transform(x)
-            x = self.image_data_generator.standardize(x)
-            images_x[i] = x
+            intername = self.internames[j]
+            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=self.target_size, interpolation='nearest')
+            print(gaze_sequence.shape)
+            print(img_sequence.shape)
+            # if self.image_data_generator.preprocessing_function:
+            #     img = self.image_data_generator.preprocessing_function(img)
+            # if self.target_size is not None:
+            #     width_height_tuple = (self.target_size[1], self.target_size[0])
+            #     if img.size != width_height_tuple:
+            #         if self.interpolation not in _PIL_INTERPOLATION_METHODS:
+            #             raise ValueError(
+            #                 'Invalid interpolation method {} specified. Supported '
+            #                 'methods are {}'.format(
+            #                     self.interpolation,
+            #                     ", ".join(_PIL_INTERPOLATION_METHODS.keys())))
+            #         resample = _PIL_INTERPOLATION_METHODS[self.interpolation]
+            #         img = img.resize(width_height_tuple, resample)
+            # x = img_to_array(img, data_format=self.data_format)
+            # x = self.image_data_generator.random_transform(x)
+            # x = self.image_data_generator.standardize(x)
+            images_x[i] = img_sequence
+            gaze_x[i] = gaze_sequence
         # optionally save augmented images to disk for debugging purposes
         if self.save_to_dir:
             for i, j in enumerate(index_array):
