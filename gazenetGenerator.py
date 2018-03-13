@@ -332,6 +332,7 @@ class GazeDataGenerator(object):
 
     def flow_from_directory(self, directory,
                             time_steps=32,
+                            time_skip=1,
                             target_size=(256, 256), color_mode='rgb',
                             classes=None, class_mode='categorical',
                             batch_size=32, shuffle=True, seed=None,
@@ -344,6 +345,7 @@ class GazeDataGenerator(object):
         return DirectoryIterator(
             directory, self,
             time_steps=time_steps,
+            time_skip=time_skip,
             target_size=target_size, color_mode=color_mode,
             classes=classes, class_mode=class_mode,
             data_format=self.data_format,
@@ -776,30 +778,30 @@ def _iter_valid_files(directory, white_list_formats, follow_links):
                 if fname.lower().endswith('.' + extension):
                     yield root, fname
 
-def _iter_valid_interaction(directory, white_list_formats, time_steps, follow_links):
+def _iter_valid_interaction(directory, white_list_formats, time_steps, time_skip, follow_links):
     # Return List of Valid Interactions
     valid_interactions = []
     for subdir in sorted(os.listdir(directory)):
         interactions = [os.path.join(directory, subdir, dirname) for dirname in os.listdir(os.path.join(directory, subdir))]
         for inter in interactions:
-            if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) >= time_steps:
+            if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) > time_steps*time_skip:
                 valid_interactions.append(inter)
     return valid_interactions
 
-def _iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links):
+def _iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, time_skip, follow_links):
     # Return List of Valid Interaction in the Directory (Does not go into Subdirectory)
     valid_interactions = []
     interactions = [os.path.join(directory, dirname) for dirname in os.listdir(os.path.join(directory))]
     # print(interactions)
     for inter in interactions:
-        if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) >= time_steps:
+        if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) > time_steps*time_skip:
             valid_interactions.append(inter)
     return valid_interactions
 
-def _count_valid_interaction_number_in_directory(directory, white_list_formats, time_steps, split, follow_links):
+def _count_valid_interaction_number_in_directory(directory, white_list_formats, time_steps, time_skip, split, follow_links):
     # Count Number of Valid Interactions
     # print(directory)
-    num_interations = len(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links))
+    num_interations = len(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, time_skip, follow_links))
     if split:
         start, stop = int(split[0] * num_interations), int(split[1] * num_interations)
     else:
@@ -869,17 +871,17 @@ def _list_valid_filenames_in_directory(directory, white_list_formats, split,
 
     return classes, filenames
 
-def _list_valid_interactions_in_directory(directory, white_list_formats, time_steps, split,
+def _list_valid_interactions_in_directory(directory, white_list_formats, time_steps, time_skip, split,
                                        class_indices, follow_links):
     # List directory names with valid interactions in the 'class' directory
 
     dirname = os.path.basename(directory)
     if split:
-        num_interactions = len(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links))
+        num_interactions = len(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, time_skip, follow_links))
         start, stop = int(split[0] * num_interactions), int(split[1] * num_interactions)
-        valid_files = list(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links))[start: stop]
+        valid_files = list(_iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, time_skip, follow_links))[start: stop]
     else:
-        valid_files = _iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, follow_links)
+        valid_files = _iter_valid_interaction_in_directory(directory, white_list_formats, time_steps, time_skip, follow_links)
 
     classes = []
     internames = []
@@ -958,6 +960,7 @@ class DirectoryIterator(Iterator):
     """
 
     def __init__(self, directory, image_data_generator,
+                 time_skip=1,
                  time_steps=32,
                  target_size=(256, 256), color_mode='rgb',
                  classes=None, class_mode='categorical',
@@ -1000,6 +1003,7 @@ class DirectoryIterator(Iterator):
         self.save_format = save_format
         self.interpolation = interpolation
         self.time_steps = time_steps
+        self.time_skip = time_skip
 
         if subset is not None:
             validation_split = self.image_data_generator._validation_split
@@ -1030,6 +1034,7 @@ class DirectoryIterator(Iterator):
         pool = multiprocessing.pool.ThreadPool()
         function_partial = partial(_count_valid_interaction_number_in_directory,
                                    time_steps=time_steps,
+                                   time_skip=self.time_skip,
                                    white_list_formats=self.white_list_formats,
                                    follow_links=follow_links,
                                    split=split)
@@ -1048,7 +1053,7 @@ class DirectoryIterator(Iterator):
         i = 0
         for dirpath in (os.path.join(directory, subdir) for subdir in classes):
             results.append(pool.apply_async(_list_valid_interactions_in_directory,
-                                            (dirpath, self.white_list_formats, self.time_steps, split,
+                                            (dirpath, self.white_list_formats, self.time_steps, self.time_skip, split,
                                              self.class_indices, follow_links)))
         for res in results:
             classes, internames = res.get()
@@ -1072,7 +1077,7 @@ class DirectoryIterator(Iterator):
         # print(gaze_x.shape)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
-            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=self.time_steps, time_skip=1, target_size=self.target_size, interpolation='nearest')
+            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=self.time_steps, time_skip=self.time_skip, target_size=self.target_size, interpolation='nearest')
             # print(gaze_sequence.shape)
             # print(img_sequence.shape)
             # if self.image_data_generator.preprocessing_function:
