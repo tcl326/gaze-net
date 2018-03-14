@@ -119,7 +119,7 @@ def img_to_array(img, data_format=None):
         raise ValueError('Unsupported image shape: ', x.shape)
     return x
 
-def load_img(path, grayscale=False, target_size=None,
+def load_img(path, grayscale=False, target_size=None, crop=True,
              interpolation='nearest'):
     """Loads an image into PIL format.
     # Arguments
@@ -143,6 +143,18 @@ def load_img(path, grayscale=False, target_size=None,
         raise ImportError('Could not import PIL.Image. '
                           'The use of `array_to_img` requires PIL.')
     img = pil_image.open(path)
+    if crop:
+        width = img.size[0]
+        height = img.size[1]
+        img = img.crop(
+            (
+                width - height,
+                0,
+                width,
+                height
+            )
+        )
+        # print(img.size)
     if grayscale:
         if img.mode != 'L':
             img = img.convert('L')
@@ -158,6 +170,7 @@ def load_img(path, grayscale=False, target_size=None,
                     'methods are {}'.format(
                         interpolation,
                         ", ".join(_PIL_INTERPOLATION_METHODS.keys())))
+
             resample = _PIL_INTERPOLATION_METHODS[interpolation]
             img = img.resize(width_height_tuple, resample)
     return img
@@ -333,6 +346,7 @@ class GazeDataGenerator(object):
     def flow_from_directory(self, directory,
                             time_steps=32,
                             time_skip=1,
+                            crop=True,
                             target_size=(256, 256), color_mode='rgb',
                             classes=None, class_mode='categorical',
                             batch_size=32, shuffle=True, seed=None,
@@ -346,6 +360,7 @@ class GazeDataGenerator(object):
             directory, self,
             time_steps=time_steps,
             time_skip=time_skip,
+            crop=True,
             target_size=target_size, color_mode=color_mode,
             classes=classes, class_mode=class_mode,
             data_format=self.data_format,
@@ -900,7 +915,7 @@ def load_gaze_sequence(interaction_path, gaze_file_name='gaze.txt'):
             results.append(float(line))
     return np.array(results).reshape((-1,3))
 
-def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=None, interpolation='nearest'):
+def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=None, crop=True, interpolation='nearest'):
     img_sequence = []
     fnames = list(_iter_valid_files(interaction_path, white_list_formats, False))
     gaze_sequence = load_gaze_sequence(interaction_path)
@@ -910,7 +925,7 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         root, fname = fnames[i]
         img_path = os.path.join(root, fname)
         # print (img_path)
-        img = load_img(img_path, grayscale, target_size, interpolation)
+        img = load_img(img_path, grayscale=grayscale, target_size=target_size, interpolation=interpolation, crop=crop)
         x = img_to_array(img, data_format=None)
         img_sequence.append(x)
     return np.array(img_sequence), gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
@@ -937,6 +952,7 @@ class DirectoryIterator(Iterator):
             `"input"`: targets are images identical to input images (mainly
                 used to work with autoencoders),
             `None`: no targets get yielded (only input images are yielded).
+        crop: Crop the image so its a square, retaining information on the right side of image
         batch_size: Integer, size of a batch.
         shuffle: Boolean, whether to shuffle the data between epochs.
         seed: Random seed for data shuffling.
@@ -962,6 +978,7 @@ class DirectoryIterator(Iterator):
     def __init__(self, directory, image_data_generator,
                  time_skip=1,
                  time_steps=32,
+                 crop=True,
                  target_size=(256, 256), color_mode='rgb',
                  classes=None, class_mode='categorical',
                  batch_size=32, shuffle=True, seed=None,
@@ -1004,6 +1021,7 @@ class DirectoryIterator(Iterator):
         self.interpolation = interpolation
         self.time_steps = time_steps
         self.time_skip = time_skip
+        self.crop = crop
 
         if subset is not None:
             validation_split = self.image_data_generator._validation_split
@@ -1077,7 +1095,10 @@ class DirectoryIterator(Iterator):
         # print(gaze_x.shape)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
-            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=self.time_steps, time_skip=self.time_skip, target_size=self.target_size, interpolation='nearest')
+            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats,
+                                                                    grayscale=False, time_steps=self.time_steps,
+                                                                    time_skip=self.time_skip, target_size=self.target_size,
+                                                                    crop=self.crop, interpolation='nearest')
             # print(gaze_sequence.shape)
             # print(img_sequence.shape)
             # if self.image_data_generator.preprocessing_function:
