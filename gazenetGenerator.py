@@ -347,6 +347,7 @@ class GazeDataGenerator(object):
                             time_steps=32,
                             time_skip=1,
                             crop=True,
+                            gaussian_std=0.01,
                             target_size=(256, 256), color_mode='rgb',
                             classes=None, class_mode='categorical',
                             batch_size=32, shuffle=True, seed=None,
@@ -361,6 +362,7 @@ class GazeDataGenerator(object):
             time_steps=time_steps,
             time_skip=time_skip,
             crop=True,
+            gaussian_std=gaussian_std,
             target_size=target_size, color_mode=color_mode,
             classes=classes, class_mode=class_mode,
             data_format=self.data_format,
@@ -1022,6 +1024,7 @@ class DirectoryIterator(Iterator):
         self.time_steps = time_steps
         self.time_skip = time_skip
         self.crop = crop
+        self.gaussian_std = gaussian_std
 
         if subset is not None:
             validation_split = self.image_data_generator._validation_split
@@ -1099,6 +1102,10 @@ class DirectoryIterator(Iterator):
                                                                     grayscale=False, time_steps=self.time_steps,
                                                                     time_skip=self.time_skip, target_size=self.target_size,
                                                                     crop=self.crop, interpolation='nearest')
+            if self.gaussian_std:
+                gaussian = np.random.normal(0, self.gaussian_std, gaze_sequence.shape)
+                gaussian[:,:,0] = 0
+                gaze_sequence = gaze_sequence + gaussian
             # print(gaze_sequence.shape)
             # print(img_sequence.shape)
             # if self.image_data_generator.preprocessing_function:
