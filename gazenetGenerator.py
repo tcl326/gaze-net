@@ -349,6 +349,7 @@ class GazeDataGenerator(object):
                             crop=True,
                             gaussian_std=0.01,
                             target_size=(256, 256), color_mode='rgb',
+                            crop_with_gaze=False, crop_with_gaze_size=128,
                             classes=None, class_mode='categorical',
                             batch_size=32, shuffle=True, seed=None,
                             save_to_dir=None,
@@ -357,13 +358,15 @@ class GazeDataGenerator(object):
                             follow_links=False,
                             subset=None,
                             interpolation='nearest'):
+        print("get into flow from directory")
         return DirectoryIterator(
             directory, self,
             time_steps=time_steps,
             time_skip=time_skip,
-            crop=True,
+            crop=crop,
             gaussian_std=gaussian_std,
             target_size=target_size, color_mode=color_mode,
+            crop_with_gaze=crop_with_gaze, crop_with_gaze_size=crop_with_gaze_size,
             classes=classes, class_mode=class_mode,
             data_format=self.data_format,
             batch_size=batch_size, shuffle=shuffle, seed=seed,
@@ -983,6 +986,7 @@ class DirectoryIterator(Iterator):
                  crop=True,
                  gaussian_std=0.01,
                  target_size=(256, 256), color_mode='rgb',
+                 crop_with_gaze=False, crop_with_gaze_size=128,
                  classes=None, class_mode='categorical',
                  batch_size=32, shuffle=True, seed=None,
                  data_format=None,
@@ -1026,6 +1030,8 @@ class DirectoryIterator(Iterator):
         self.time_skip = time_skip
         self.crop = crop
         self.gaussian_std = gaussian_std
+        self.crop_with_gaze = crop_with_gaze
+        self.crop_with_gaze_size = crop_with_gaze_size
 
         if subset is not None:
             validation_split = self.image_data_generator._validation_split
@@ -1090,6 +1096,34 @@ class DirectoryIterator(Iterator):
         pool.join()
         super(DirectoryIterator, self).__init__(self.samples, batch_size, shuffle, seed)
 
+    def _crop_with_gaze(self, images, gazes):
+        batch_size = self.batch_size
+        time_steps = self.time_steps
+        img_size = self.crop_with_gaze_size
+        num_channel = 3
+        # print("get into _crop_with_gaze")
+        # print((batch_size,time_steps,img_size,img_size,num_channel))
+        img_seq = np.zeros((batch_size,time_steps,img_size,img_size,num_channel), dtype=int)
+        for i in range(batch_size):
+            for j in range(time_steps):
+                x = self.target_size[0] * gazes[i, j, 1]
+                y = self.target_size[0] * gazes[i, j, 2]
+                # print(x)
+                # print(y)
+                image_size = images.shape[2]
+                assert image_size > img_size
+                right_bound = int(min(x+(img_size/2),image_size))
+                left_bound = int(max(0,x-(img_size/2)))
+                up_bound = int(max(0,y-(img_size/2)))
+                down_bound = int(min(image_size,y+(img_size/2)))
+                # print(right_bound)
+                # print(left_bound)
+                # print(up_bound)
+                # print(down_bound)
+                img_seq[i, j, :, :, :] = images[i, j, up_bound:down_bound, left_bound:right_bound, :]
+        print("finished crop with gaze")
+        return img_seq
+
     def _get_batches_of_transformed_samples(self, index_array):
         images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
         gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
@@ -1129,6 +1163,13 @@ class DirectoryIterator(Iterator):
             # x = self.image_data_generator.standardize(x)
             images_x[i] = img_sequence
             gaze_x[i] = gaze_sequence
+
+        if self.crop_with_gaze == True:
+            # print("next, before calling crop with gaze")
+            images_x = self._crop_with_gaze(images_x, gaze_x)
+            # print(images_x.shape)
+
+
         # optionally save augmented images to disk for debugging purposes
         if self.save_to_dir:
             for i, j in enumerate(index_array):
@@ -1139,6 +1180,7 @@ class DirectoryIterator(Iterator):
                                                                   format=self.save_format)
                 img.save(os.path.join(self.save_to_dir, fname))
         # build batch of labels
+        # print("before return in get batches")
         if self.class_mode == 'input':
             batch_y = images_x.copy()
         elif self.class_mode == 'sparse':
@@ -1151,7 +1193,11 @@ class DirectoryIterator(Iterator):
                 batch_y[i, label] = 1.
         else:
             return images_x
-        return [images_x, gaze_x], batch_y
+        # print("before return")
+        if self.crop_with_gaze == True:
+            return images_x, batch_y
+        else:
+            return [images_x, gaze_x], batch_y
 
     def next(self):
         """For python 2.x.
@@ -1162,4 +1208,5 @@ class DirectoryIterator(Iterator):
             index_array = next(self.index_generator)
         # The transformation of images is not under thread lock
         # so it can be done in parallel
+        # print("get into next")
         return self._get_batches_of_transformed_samples(index_array)
