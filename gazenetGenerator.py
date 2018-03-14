@@ -10,6 +10,7 @@ import numpy as np
 import re
 from scipy import linalg
 import scipy.ndimage as ndi
+import scipy.misc as sci
 from six.moves import range
 import os
 import threading
@@ -143,9 +144,9 @@ def load_img(path, grayscale=False, target_size=None, crop=True,
         raise ImportError('Could not import PIL.Image. '
                           'The use of `array_to_img` requires PIL.')
     img = pil_image.open(path)
+    width = img.size[0]
+    height = img.size[1]
     if crop:
-        width = img.size[0]
-        height = img.size[1]
         img = img.crop(
             (
                 width - height,
@@ -173,7 +174,7 @@ def load_img(path, grayscale=False, target_size=None, crop=True,
 
             resample = _PIL_INTERPOLATION_METHODS[interpolation]
             img = img.resize(width_height_tuple, resample)
-    return img
+    return img, width, height
 
 
 def list_pictures(directory, ext='jpg|jpeg|bmp|png|ppm'):
@@ -920,6 +921,21 @@ def load_gaze_sequence(interaction_path, gaze_file_name='gaze.txt'):
             results.append(float(line))
     return np.array(results).reshape((-1,3))
 
+def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, target_size=None):
+    # print(gaze_seq.shape)
+    gaze_seq[:, 1] *= ori_width
+    gaze_seq[:, 2] *= ori_height
+    delta = ori_width - ori_height
+    if crop == True:
+        # print("crop gaze")
+        gaze_seq[:, 1] -= delta
+        if target_size != None or target_size != (ori_height, ori_height):
+            gaze_seq[:, 1] *= target_size[1] / ori_width
+            gaze_seq[:, 2] *= target_size[0] / ori_height
+    gaze_seq[:, 1] = gaze_seq[:, 1].astype(int)
+    gaze_seq[:, 2] = gaze_seq[:, 2].astype(int)
+    return gaze_seq
+
 def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=None, crop=True, interpolation='nearest'):
     img_sequence = []
     fnames = list(_iter_valid_files(interaction_path, white_list_formats, False))
@@ -930,9 +946,10 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         root, fname = fnames[i]
         img_path = os.path.join(root, fname)
         # print (img_path)
-        img = load_img(img_path, grayscale=grayscale, target_size=target_size, interpolation=interpolation, crop=crop)
+        img, width, height = load_img(img_path, grayscale=grayscale, target_size=target_size, interpolation=interpolation, crop=crop)
         x = img_to_array(img, data_format=None)
         img_sequence.append(x)
+    gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
     return np.array(img_sequence), gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
 
 class DirectoryIterator(Iterator):
@@ -985,7 +1002,7 @@ class DirectoryIterator(Iterator):
                  time_steps=32,
                  crop=True,
                  gaussian_std=0.01,
-                 target_size=(256, 256), color_mode='rgb',
+                 target_size=(360, 360), color_mode='rgb',
                  crop_with_gaze=False, crop_with_gaze_size=128,
                  classes=None, class_mode='categorical',
                  batch_size=32, shuffle=True, seed=None,
@@ -1106,8 +1123,8 @@ class DirectoryIterator(Iterator):
         img_seq = np.zeros((batch_size,time_steps,img_size,img_size,num_channel), dtype=int)
         for i in range(batch_size):
             for j in range(time_steps):
-                x = self.target_size[0] * gazes[i, j, 1]
-                y = self.target_size[0] * gazes[i, j, 2]
+                x = gazes[i, j, 1]
+                y = gazes[i, j, 2]
                 # print(x)
                 # print(y)
                 image_size = images.shape[2]
@@ -1120,8 +1137,12 @@ class DirectoryIterator(Iterator):
                 # print(left_bound)
                 # print(up_bound)
                 # print(down_bound)
-                img_seq[i, j, :, :, :] = images[i, j, up_bound:down_bound, left_bound:right_bound, :]
-        print("finished crop with gaze")
+                tmp= images[i, j, up_bound:down_bound, left_bound:right_bound, :]
+                if tmp.shape != (img_size, img_size):
+                    img_seq[i, j, :, :, :] = sci.imresize(tmp, (img_size, img_size))
+                else:
+                    img_seq[i, j, :, :, :] = tmp
+        # print("finished crop with gaze")
         return img_seq
 
     def _get_batches_of_transformed_samples(self, index_array):
