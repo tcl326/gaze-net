@@ -981,6 +981,7 @@ class DirectoryIterator(Iterator):
                  time_skip=1,
                  time_steps=32,
                  crop=True,
+                 gaussian_std=0.01,
                  target_size=(256, 256), color_mode='rgb',
                  classes=None, class_mode='categorical',
                  batch_size=32, shuffle=True, seed=None,
@@ -1103,8 +1104,10 @@ class DirectoryIterator(Iterator):
                                                                     time_skip=self.time_skip, target_size=self.target_size,
                                                                     crop=self.crop, interpolation='nearest')
             if self.gaussian_std:
+                # print(gaze_sequence.shape)
                 gaussian = np.random.normal(0, self.gaussian_std, gaze_sequence.shape)
-                gaussian[:,:,0] = 0
+                # print(gaussian.shape)
+                gaussian[:,0] = 0
                 gaze_sequence = gaze_sequence + gaussian
             # print(gaze_sequence.shape)
             # print(img_sequence.shape)
