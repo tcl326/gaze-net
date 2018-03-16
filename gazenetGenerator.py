@@ -930,8 +930,8 @@ def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, tar
         # print("crop gaze")
         gaze_seq[:, 1] -= delta
         if target_size != None or target_size != (ori_height, ori_height):
-            gaze_seq[:, 1] *= target_size[1] / ori_width
-            gaze_seq[:, 2] *= target_size[0] / ori_height
+            gaze_seq[:, 1] *= target_size[1] / float(ori_width)
+            gaze_seq[:, 2] *= target_size[0] / float(ori_height)
     gaze_seq[:, 1] = gaze_seq[:, 1].astype(int)
     gaze_seq[:, 2] = gaze_seq[:, 2].astype(int)
     return gaze_seq
@@ -1123,8 +1123,15 @@ class DirectoryIterator(Iterator):
         img_seq = np.zeros((batch_size,time_steps,img_size,img_size,num_channel), dtype=int)
         for i in range(batch_size):
             for j in range(time_steps):
+                if (gazes[i,j,1] >= images.shape[3] or gazes[i,j,1] < 0 or gazes[i,j,2] >= images.shape[2] and gazes[i,j,2] < 0) and j != 0 :
+                    gazes[i,j,1] = 0
+                    gazes[i,j,2] = 0
+                if (gazes[i,j,1] >= images.shape[3] or gazes[i,j,1] < 0 or gazes[i,j,2] >= images.shape[2] or gazes[i,j,2] < 0) and j != 0 :
+                    gazes[i,j,1] = gazes[i,j-1,1]
+                    gazes[i,j,2] = gazes[i-1,j,1]
                 x = gazes[i, j, 1]
                 y = gazes[i, j, 2]
+
                 # print(x)
                 # print(y)
                 image_size = images.shape[2]
@@ -1139,7 +1146,7 @@ class DirectoryIterator(Iterator):
                 # print(down_bound)
                 tmp= images[i, j, up_bound:down_bound, left_bound:right_bound, :]
                 if tmp.shape != (img_size, img_size):
-                    img_seq[i, j, :, :, :] = sci.imresize(tmp, (img_size, img_size))
+                    img_seq[i, j, :, :, :] = sci.imresize(tmp, (img_size, img_size,3))
                 else:
                     img_seq[i, j, :, :, :] = tmp
         # print("finished crop with gaze")
