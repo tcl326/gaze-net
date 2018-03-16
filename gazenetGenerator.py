@@ -1123,27 +1123,20 @@ class DirectoryIterator(Iterator):
         img_seq = np.zeros((batch_size,time_steps,img_size,img_size,num_channel), dtype=int)
         for i in range(batch_size):
             for j in range(time_steps):
-                if (gazes[i,j,1] >= images.shape[3] or gazes[i,j,1] < 0 or gazes[i,j,2] >= images.shape[2] and gazes[i,j,2] < 0) and j != 0 :
+                if (gazes[i,j,1] >= images.shape[3] or gazes[i,j,1] < 0 or gazes[i,j,2] >= images.shape[2] or gazes[i,j,2] < 0) and j == 0 :
                     gazes[i,j,1] = 0
                     gazes[i,j,2] = 0
                 if (gazes[i,j,1] >= images.shape[3] or gazes[i,j,1] < 0 or gazes[i,j,2] >= images.shape[2] or gazes[i,j,2] < 0) and j != 0 :
                     gazes[i,j,1] = gazes[i,j-1,1]
-                    gazes[i,j,2] = gazes[i-1,j,1]
+                    gazes[i,j,2] = gazes[i,j-1,2]
                 x = gazes[i, j, 1]
                 y = gazes[i, j, 2]
 
-                # print(x)
-                # print(y)
-                image_size = images.shape[2]
-                assert image_size > img_size
-                right_bound = int(min(x+(img_size/2),image_size))
+                right_bound = int(min(x+(img_size/2),images.shape[3]))
                 left_bound = int(max(0,x-(img_size/2)))
                 up_bound = int(max(0,y-(img_size/2)))
-                down_bound = int(min(image_size,y+(img_size/2)))
-                # print(right_bound)
-                # print(left_bound)
-                # print(up_bound)
-                # print(down_bound)
+                down_bound = int(min(images.shape[2],y+(img_size/2)))
+
                 tmp= images[i, j, up_bound:down_bound, left_bound:right_bound, :]
                 if tmp.shape != (img_size, img_size):
                     img_seq[i, j, :, :, :] = sci.imresize(tmp, (img_size, img_size,3))
