@@ -915,6 +915,7 @@ def _list_valid_interactions_in_directory(directory, white_list_formats, time_st
     return classes, internames
 
 def load_gaze_sequence(interaction_path, gaze_file_name='gaze.txt'):
+    print("load gaze sequence")
     results = []
     with open(os.path.join(interaction_path, gaze_file_name)) as inputfile:
         for line in inputfile:
@@ -923,6 +924,7 @@ def load_gaze_sequence(interaction_path, gaze_file_name='gaze.txt'):
 
 def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, target_size=None):
     # print(gaze_seq.shape)
+    print("modify gaze sequence")
     gaze_seq[:, 1] *= ori_width
     gaze_seq[:, 2] *= ori_height
     delta = ori_width - ori_height
@@ -1118,7 +1120,7 @@ class DirectoryIterator(Iterator):
         time_steps = self.time_steps
         img_size = self.crop_with_gaze_size
         num_channel = 3
-        # print("get into _crop_with_gaze")
+        print("get into _crop_with_gaze")
         # print((batch_size,time_steps,img_size,img_size,num_channel))
         img_seq = np.zeros((batch_size,time_steps,img_size,img_size,num_channel), dtype=int)
         for i in range(batch_size):
@@ -1142,7 +1144,7 @@ class DirectoryIterator(Iterator):
                     img_seq[i, j, :, :, :] = sci.imresize(tmp, (img_size, img_size,3))
                 else:
                     img_seq[i, j, :, :, :] = tmp
-        # print("finished crop with gaze")
+        print("finished crop with gaze")
         return img_seq
 
     def _get_batches_of_transformed_samples(self, index_array):
@@ -1150,14 +1152,19 @@ class DirectoryIterator(Iterator):
         gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
+        print("build batch of image data")
         # print(images_x.shape)
         # print(gaze_x.shape)
+        print(index_array)
         for i, j in enumerate(index_array):
+            print(i)
+            print(j)
             intername = self.internames[j]
             img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats,
                                                                     grayscale=False, time_steps=self.time_steps,
                                                                     time_skip=self.time_skip, target_size=self.target_size,
                                                                     crop=self.crop, interpolation='nearest')
+            print("finish load interaction sequence")
             if self.gaussian_std:
                 # print(gaze_sequence.shape)
                 gaussian = np.random.normal(0, self.gaussian_std, gaze_sequence.shape)
