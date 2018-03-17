@@ -50,15 +50,14 @@ epochs=1
 validation_step=20
 total_num_epoch = 40
 
-
 class GazeNet():
     def __init__(self,learning_rate,time_steps,num_classes,batch_size):
         self.learning_rate = learning_rate
         self.time_steps = time_steps
         self.num_classes = num_classes
         self.batch_size = batch_size
-        self.kernel_size = 7
-        self.kernel_num = 96
+        self.kernel_size = 15
+        self.kernel_num = 256
         self.gaussian_sigma = 1
         self.gaussian_weight = self.create_gaussian_weight()
         self.model = self.create_model()
@@ -91,27 +90,27 @@ class GazeNet():
 
         model.add(Lambda(input_reshape, input_shape=(self.time_steps,128,128,3,)))
         #block 1
-        model.add(Conv2D(96,(5,5),strides = (4,4),
+        model.add(Conv2D(96,(5,5),strides = (2,2),
                             padding = 'valid',
                             activation = 'relu'))
-        model.add(MaxPooling2D(pool_size = (4,4)))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size = (2,2)))
 
         #block 2
-        # model.add(Conv2D(256,(3,3),padding = 'same'))
-        # model.add(BatchNormalization())
-        # model.add(Activation('relu'))
-        #
-        # model.add(Conv2D(256,(3,3),padding = 'same'))
-        # model.add(BatchNormalization())
-        # model.add(Activation('relu'))
-        #
-        # model.add(Conv2D(256,(3,3),padding = 'same'))
-        # model.add(BatchNormalization())
-        # model.add(Activation('relu'))
-        # model.add(MaxPooling2D(2,2))
+        model.add(Conv2D(256,(3,3),padding = 'same'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+
+        model.add(Conv2D(256,(3,3),padding = 'same'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+
+        model.add(Conv2D(256,(3,3),padding = 'same'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(MaxPooling2D(2,2))
 
         def multiply_constant(input):
-            # input = np.array(input)
             for i in range(self.batch_size*self.time_steps):
                 tmp = tf.multiply(tf.cast(input[i], tf.float32), tf.cast(self.gaussian_weight, tf.float32))
                 tmp = tf.expand_dims(tmp, 0)
@@ -130,7 +129,7 @@ class GazeNet():
         def mean_value(input):
             return tf.reduce_mean(input,1)
 
-        # model.add(LSTM(128,return_sequences = True))
+        model.add(LSTM(128,return_sequences = True))
         model.add(LSTM(6,return_sequences = True))
         model.add(Lambda(mean_value))
 
@@ -139,6 +138,7 @@ class GazeNet():
         print(model.summary())
 
         return model
+    
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
 
