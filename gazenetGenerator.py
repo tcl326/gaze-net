@@ -1146,8 +1146,8 @@ class DirectoryIterator(Iterator):
         return img_seq
 
     def _get_batches_of_transformed_samples(self, index_array):
-        index_array = np.array([1,2])
-        print(index_array.shape[0])
+        # index_array = np.array([1,2])
+        # print(index_array.shape[0])
 
         if index_array.shape[0]<self.batch_size:
             ele = index_array[index_array.shape[0]-1]
@@ -1160,8 +1160,8 @@ class DirectoryIterator(Iterator):
         gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
-        print(images_x.shape)
-        print(gaze_x.shape)
+        # print(images_x.shape)
+        # print(gaze_x.shape)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
             img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats,
