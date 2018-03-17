@@ -45,7 +45,7 @@ time_skip = 2
 origin_image_size = 360    # size of the origin image before the cropWithGaze
 img_size = 128    # size of the input image for network
 num_channel = 3
-steps_per_epoch=100
+steps_per_epoch=5
 epochs=1
 validation_step=20
 total_num_epoch = 40
@@ -138,7 +138,7 @@ class GazeNet():
         print(model.summary())
 
         return model
-    
+
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
 
@@ -153,6 +153,7 @@ class LossHistory(keras.callbacks.Callback):
 
     def on_batch_end(self, batch, logs={}):
         self.losses.append(logs.get('loss'))
+from keras.callbacks import History
 
 def main(args):
     # generate model
@@ -183,13 +184,15 @@ def main(args):
         # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
 
         # callbacks = gaze_net.save_model_weights(checkpointsString)
-        history = LossHistory()
-        model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,callbacks = [history],
+        # history = History()
+        # checkpointer = ModelCheckpoint(filepath='/tmp/weights.hdf5', verbose=1, save_best_only=True)
+
+        hist = model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,
                         validation_data=val_data, validation_steps=validation_step, shuffle=False)
         print("finished training!")
-        print(history.losses)
+        print(hist.history)
         file = open(save_path + 'losses.txt','a')
-        file.writelines(["%s\n" % loss  for loss in history.losses])
+        file.writelines(["%s\n" % loss  for loss in hist.history.values()])
         model.save_weights( save_path + 'weights.hdf5')
 
 if __name__ == '__main__':
