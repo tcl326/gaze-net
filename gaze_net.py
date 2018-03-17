@@ -45,9 +45,10 @@ time_skip = 2
 origin_image_size = 360    # size of the origin image before the cropWithGaze
 img_size = 128    # size of the input image for network
 num_channel = 3
-steps_per_epoch=1
+steps_per_epoch=100
 epochs=1
 validation_step=20
+total_num_epoch = 40
 
 
 class GazeNet():
@@ -143,36 +144,53 @@ class GazeNet():
 
         self.model.save_weights(save_path)
         # self.model.save(save_path)
+
         # return suffix
+import keras.callbacks
+class LossHistory(keras.callbacks.Callback):
+    def on_train_begin(self, logs={}):
+        self.losses = []
+
+    def on_batch_end(self, batch, logs={}):
+        self.losses.append(logs.get('loss'))
 
 def main(args):
     # generate model
     gaze_net = GazeNet(learning_rate,time_steps,num_classes,batch_size)
     model = gaze_net.model
-    suffix = str(031713)
-#     plot_model(model, to_file='model.png')
+    #     plot_model(model, to_file='model.png')
     print("generate model!")
 
     # generatr generator
-    trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
-    train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
-                                                    batch_size=batch_size, crop=False,
-                                                    gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
-                                                   crop_with_gaze_size=128)
-    val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
-                                                  batch_size=batch_size, crop=False,
-                                                    gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
-                                                   crop_with_gaze_size=128)
-    # [img_seq, gaze_seq], output = next(trainGeneratorgDirectory)
-    print("fetch data!")
+    for i in range(total_num_epoch):
+        save_path = 'model/'+str(i) + '/'
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
 
-    # start training
-    # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
-    callbacks = gaze_net.save_model_weights(checkpointsString)
-    model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,
-                    validation_data=val_data, validation_steps=validation_step, shuffle=False)
-    print("finished training!")
-    model.save_weights( 'models/'+suffix + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5')
+        trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
+        train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
+                                                        batch_size=batch_size, crop=False,
+                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
+                                                       crop_with_gaze_size=128)
+        val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
+                                                      batch_size=batch_size, crop=False,
+                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
+                                                       crop_with_gaze_size=128)
+        # [img_seq, gaze_seq], output = next(trainGeneratorgDirectory)
+        print("fetch data!")
+
+        # start training
+        # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
+
+        # callbacks = gaze_net.save_model_weights(checkpointsString)
+        history = LossHistory()
+        model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,callbacks = [history],
+                        validation_data=val_data, validation_steps=validation_step, shuffle=False)
+        print("finished training!")
+        print(history.losses)
+        file = open(save_path + 'losses.txt','a')
+        file.writelines(["%s\n" % loss  for loss in history.losses])
+        model.save_weights( save_path + 'weights.hdf5')
 
 if __name__ == '__main__':
     main(sys.argv)
