@@ -172,7 +172,7 @@ def main(args):
     if args.train == 1:
     # generatr generator
         for i in range(total_num_epoch):
-            save_path = 'model/'+str(i) + '/'
+            save_path = 'model2/'+str(i) + '/'
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
 
