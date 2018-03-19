@@ -20,7 +20,7 @@ from keras.models import Sequential, load_model
 from keras.layers import Dropout, Flatten
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dropout
 from keras.layers import Activation, BatchNormalization, MaxPooling2D
-import time
+import time,argparse
 import math
 from keras.utils import plot_model
 from keras.callbacks import ModelCheckpoint
@@ -50,6 +50,7 @@ epochs=1
 validation_step=20
 total_num_epoch = 40
 
+
 class GazeNet():
     def __init__(self,learning_rate,time_steps,num_classes,batch_size):
         self.learning_rate = learning_rate
@@ -61,7 +62,6 @@ class GazeNet():
         self.gaussian_sigma = 1
         self.gaussian_weight = self.create_gaussian_weight()
         self.model = self.create_model()
-
     def create_gaussian_weight(self):
         kernel_size = self.kernel_size    #same with the shape of the layer before flatten
         kernel_num = self.kernel_num
@@ -69,7 +69,6 @@ class GazeNet():
         sigma_2 = float(self.gaussian_sigma * self.gaussian_sigma)
         pi = 3.1415926
         ratio = 1 / (2*pi*sigma_2)
-
         kernel = np.zeros((kernel_size, kernel_size))
         for i in range(-r, r+1):
             for j in range(-r, r+1):
@@ -80,11 +79,8 @@ class GazeNet():
         kernel = np.tile(kernel, (1,1,kernel_num))
         # print(kernel.shape)
         return kernel
-
     def create_model(self):
-
         model = Sequential()
-
         def input_reshape(input):
             return tf.reshape(input, [self.batch_size*self.time_steps,128,128,3])
 
@@ -155,45 +151,65 @@ class LossHistory(keras.callbacks.Callback):
         self.losses.append(logs.get('loss'))
 from keras.callbacks import History
 
+
+def parse_arguments():
+	parser = argparse.ArgumentParser(description='Deep Q Network Argument Parser')
+	parser.add_argument('--env',dest='env',type=str)
+	parser.add_argument('--render',dest='render',type=int,default=0)
+	parser.add_argument('--train',dest='train',type=int,default=1)
+
+	return parser.parse_args()
+
 def main(args):
     # generate model
+    args = parse_arguments()
     gaze_net = GazeNet(learning_rate,time_steps,num_classes,batch_size)
     model = gaze_net.model
     #     plot_model(model, to_file='model.png')
     print("generate model!")
-
+    if args.train == 1:
     # generatr generator
-    for i in range(total_num_epoch):
-        save_path = 'model/'+str(i) + '/'
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
+        for i in range(total_num_epoch):
+            save_path = 'model/'+str(i) + '/'
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
 
-        trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
-        train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
+            trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
+            train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
+                                                            batch_size=batch_size, crop=False,
+                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
+                                                           crop_with_gaze_size=128)
+            val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
+                                                          batch_size=batch_size, crop=False,
+                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
+                                                           crop_with_gaze_size=128)
+            # [img_seq, gaze_seq], output = next(trainGeneratorgDirectory)
+            print("fetch data!")
+
+            # start training
+            # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
+
+            # callbacks = gaze_net.save_model_weights(checkpointsString)
+            # history = History()
+            # checkpointer = ModelCheckpoint(filepath='/tmp/weights.hdf5', verbose=1, save_best_only=True)
+
+            hist = model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,
+                            validation_data=val_data, validation_steps=validation_step, shuffle=False)
+            print("finished training!")
+            print(hist.history)
+            file = open(save_path + 'losses.txt','a')
+            file.writelines(["%s\n" % loss  for loss in hist.history.values()])
+            if i%10 == 0:
+                model.save_weights( save_path + 'weights.hdf5')
+    else:
+
+        model.load_weights('model/'+'weights.hdf5', by_name=False)
+        testGenerator = gaze_gen.GazeDataGenerator(validation_split = 0.2)
+        test_data = testGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
                                                         batch_size=batch_size, crop=False,
                                                         gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
-                                                       crop_with_gaze_size=128)
-        val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
-                                                      batch_size=batch_size, crop=False,
-                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
-                                                       crop_with_gaze_size=128)
-        # [img_seq, gaze_seq], output = next(trainGeneratorgDirectory)
-        print("fetch data!")
-
-        # start training
-        # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
-
-        # callbacks = gaze_net.save_model_weights(checkpointsString)
-        # history = History()
-        # checkpointer = ModelCheckpoint(filepath='/tmp/weights.hdf5', verbose=1, save_best_only=True)
-
-        hist = model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,
-                        validation_data=val_data, validation_steps=validation_step, shuffle=False)
-        print("finished training!")
-        print(hist.history)
-        file = open(save_path + 'losses.txt','a')
-        file.writelines(["%s\n" % loss  for loss in hist.history.values()])
-        model.save_weights( save_path + 'weights.hdf5')
-
+                                                        crop_with_gaze_size=128)
+        predicted_labels = model.predict_generator(test_data,steps=None, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=0)
+        print(predicted_labels)
 if __name__ == '__main__':
     main(sys.argv)
