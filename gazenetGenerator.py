@@ -1174,24 +1174,6 @@ class DirectoryIterator(Iterator):
                 # print(gaussian.shape)
                 gaussian[:,0] = 0
                 gaze_sequence = gaze_sequence + gaussian
-            # print(gaze_sequence.shape)
-            # print(img_sequence.shape)
-            # if self.image_data_generator.preprocessing_function:
-            #     img = self.image_data_generator.preprocessing_function(img)
-            # if self.target_size is not None:
-            #     width_height_tuple = (self.target_size[1], self.target_size[0])
-            #     if img.size != width_height_tuple:
-            #         if self.interpolation not in _PIL_INTERPOLATION_METHODS:
-            #             raise ValueError(
-            #                 'Invalid interpolation method {} specified. Supported '
-            #                 'methods are {}'.format(
-            #                     self.interpolation,
-            #                     ", ".join(_PIL_INTERPOLATION_METHODS.keys())))
-            #         resample = _PIL_INTERPOLATION_METHODS[self.interpolation]
-            #         img = img.resize(width_height_tuple, resample)
-            # x = img_to_array(img, data_format=self.data_format)
-            # x = self.image_data_generator.random_transform(x)
-            # x = self.image_data_generator.standardize(x)
             images_x[i] = img_sequence
             gaze_x[i] = gaze_sequence
 
