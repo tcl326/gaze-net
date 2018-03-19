@@ -1011,6 +1011,7 @@ class DirectoryIterator(Iterator):
                  follow_links=False,
                  subset=None,
                  interpolation='nearest'):
+        print("I am in the generator!")
         if data_format is None:
             data_format = K.image_data_format()
         self.directory = directory
@@ -1141,53 +1142,41 @@ class DirectoryIterator(Iterator):
                 if tmp.shape != (img_size, img_size):
                     img_seq[i, j, :, :, :] = sci.imresize(tmp, (img_size, img_size,3))
                 else:
-                    img_seq[i, j, :, :, :] = tmp0]<self.batch_size:
-        #     ele = index_array[index_array.shape[0]-1]
-        #     while True:
-        #         index_array = np.append(index_array,ele)
-        #         if index_array.shape[0] == self.batch_size:
-        #             break
+                    img_seq[i, j, :, :, :] = tmp
         # print("finished crop with gaze")
         return img_seq
-
     def _get_batches_of_transformed_samples(self, index_array):
-        # index_array = np.array([1,2])
-        # print(index_array.shape[0])
-
-        # if index_array.shape[0]<self.batch_size:
-        #     ele = index_array[index_array.shape[0]-1]
-        #     while True:
-        #         index_array = np.append(index_array,ele)
-        #         if index_array.shape[0] == self.batch_size:
-        #             break
-            # index_array = np.append(index_array,index_array[0:self.batch_size-index_array.shape[0]])
         images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
         gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
+        # images_x = np.zeros(self.image_shape, dtype=K.floatx())
+        # gaze_x = np.zeros((3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
         # print(images_x.shape)
         # print(gaze_x.shape)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
-            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats,
-                                                                    grayscale=False, time_steps=self.time_steps,
-                                                                    time_skip=self.time_skip, target_size=self.target_size,
-                                                                    crop=self.crop, interpolation='nearest')
-            if self.gaussian_std:
-                # print(gaze_sequence.shape)
-                gaussian = np.random.normal(0, self.gaussian_std, gaze_sequence.shape)
-                # print(gaussian.shape)
-                gaussian[:,0] = 0
-                gaze_sequence = gaze_sequence + gaussian
+            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats, grayscale=False, time_steps=self.time_steps, time_skip=self.time_skip, target_size=self.target_size, interpolation='nearest')
+            # print(gaze_sequence.shape)
+            # print(img_sequence.shape)
+            # if self.image_data_generator.preprocessing_function:
+            #     img = self.image_data_generator.preprocessing_function(img)
+            # if self.target_size is not None:
+            #     width_height_tuple = (self.target_size[1], self.target_size[0])
+            #     if img.size != width_height_tuple:
+            #         if self.interpolation not in _PIL_INTERPOLATION_METHODS:
+            #             raise ValueError(
+            #                 'Invalid interpolation method {} specified. Supported '
+            #                 'methods are {}'.format(
+            #                     self.interpolation,
+            #                     ", ".join(_PIL_INTERPOLATION_METHODS.keys())))
+            #         resample = _PIL_INTERPOLATION_METHODS[self.interpolation]
+            #         img = img.resize(width_height_tuple, resample)
+            # x = img_to_array(img, data_format=self.data_format)
+            # x = self.image_data_generator.random_transform(x)
+            # x = self.image_data_generator.standardize(x)
             images_x[i] = img_sequence
             gaze_x[i] = gaze_sequence
-
-        if self.crop_with_gaze == True:
-            # print("next, before calling crop with gaze")
-            images_x = self._crop_with_gaze(images_x, gaze_x)
-            # print(images_x.shape)
-
-
         # optionally save augmented images to disk for debugging purposes
         if self.save_to_dir:
             for i, j in enumerate(index_array):
@@ -1198,7 +1187,6 @@ class DirectoryIterator(Iterator):
                                                                   format=self.save_format)
                 img.save(os.path.join(self.save_to_dir, fname))
         # build batch of labels
-        # print("before return in get batches")
         if self.class_mode == 'input':
             batch_y = images_x.copy()
         elif self.class_mode == 'sparse':
@@ -1211,11 +1199,7 @@ class DirectoryIterator(Iterator):
                 batch_y[i, label] = 1.
         else:
             return images_x
-        # print("before return")
-        if self.crop_with_gaze == True:
-            return images_x, batch_y
-        else:
-            return [images_x, gaze_x], batch_y
+        return [images_x, gaze_x], batch_y
 
     def next(self):
         """For python 2.x.
@@ -1226,5 +1210,4 @@ class DirectoryIterator(Iterator):
             index_array = next(self.index_generator)
         # The transformation of images is not under thread lock
         # so it can be done in parallel
-        # print("get into next")
         return self._get_batches_of_transformed_samples(index_array)
