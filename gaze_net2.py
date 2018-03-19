@@ -19,7 +19,7 @@ from keras.utils.np_utils import to_categorical
 from keras.models import Sequential, load_model
 from keras.layers import Dropout, Flatten
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dropout
-from keras.layers import Activation, BatchNormalization, MaxPooling2D, Concatenate
+from keras.layers import Activation, BatchNormalization, MaxPooling2D
 import time,argparse
 import math
 from keras.utils import plot_model
@@ -33,7 +33,7 @@ from keras import backend as K
 K.set_image_dim_ordering('tf')
 import keras.callbacks
 
-import gazenetGenerator1 as gaze_gen
+import gazenetGenerator2 as gaze_gen
 
 # global param
 dataset_path = '../gaze-net/gaze_dataset'
@@ -52,62 +52,91 @@ total_num_epoch = 40
 
 
 class GazeNet():
-    def __init__(self):
-        self.learning_rate = 0.0001
-        self.batch_size = batch_size
+    def __init__(self,learning_rate,time_steps,num_classes,batch_size):
+        self.learning_rate = learning_rate
         self.time_steps = time_steps
+        self.num_classes = num_classes
+        self.batch_size = batch_size
+        self.kernel_size = 15
+        self.kernel_num = 256
+        self.gaussian_sigma = 1
+        self.gaussian_weight = self.create_gaussian_weight()
         self.model = self.create_model()
-
-    def convolution(self, kernel_size = 5):
-        def f(input):
-            filters = 96
-            conv1 = Conv2D(filters, kernel_size, strides=(3, 3), padding='valid', activation=None)(input)
-            conv1 = Conv2D(filters, kernel_size, strides=(2, 2), padding='valid', activation=None)(conv1)
-            conv1 = Conv2D(filters, kernel_size, strides=(2, 2), padding='valid', activation=None)(conv1)
-            return conv1
-        return f
-
-    def lstm(self):
-        def f(input):
-            lstm = LSTM(128,return_sequences=True)(input)
-            lstm = LSTM(96)(lstm)
-            return lstm
-        return f
-
+    def create_gaussian_weight(self):
+        kernel_size = self.kernel_size    #same with the shape of the layer before flatten
+        kernel_num = self.kernel_num
+        r = (kernel_size - 1) // 2
+        sigma_2 = float(self.gaussian_sigma * self.gaussian_sigma)
+        pi = 3.1415926
+        ratio = 1 / (2*pi*sigma_2)
+        kernel = np.zeros((kernel_size, kernel_size))
+        for i in range(-r, r+1):
+            for j in range(-r, r+1):
+                tmp = math.exp(-(i*i+j*j)/(2*sigma_2))
+                kernel[i+r][j+r] = round(tmp, 3)
+        kernel *= ratio
+        kernel = np.expand_dims(kernel, axis=2)
+        kernel = np.tile(kernel, (1,1,kernel_num))
+        # print(kernel.shape)
+        return kernel
     def create_model(self):
-        image = Input(shape=(self.time_steps,256,256,3,))
-        def input_reshape(image):
-            return tf.reshape(image,[self.batch_size*self.time_steps,256,256,3])
-        image_reshaped = Lambda(input_reshape)(image)
-        image_embedding = self.convolution()(image_reshaped)
-        flatten = Flatten()(image_embedding)
+        model = Sequential()
+        def input_reshape(input):
+            return tf.reshape(input, [self.batch_size*self.time_steps,128,128,3])
 
-        gaze = Input(shape=(self.time_steps,3,))
-        def input_gaze_reshape(input):
-            return tf.reshape(input,[self.batch_size*self.time_steps,1,3])
-        gaze_reshaped = Lambda(input_gaze_reshape)(gaze)
-        print(gaze_reshaped)
-        gaze_embedding = self.lstm()(gaze_reshaped)
-        print(gaze_embedding)
+        model.add(Lambda(input_reshape, input_shape=(self.time_steps,128,128,3,)))
+        #block 1
+        model.add(Conv2D(96,(5,5),strides = (2,2),
+                            padding = 'valid',
+                            activation = 'relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size = (2,2)))
 
+        #block 2
+        model.add(Conv2D(256,(3,3),padding = 'same'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
 
-        merged = Concatenate()([flatten, gaze_embedding])
-        hidden = Dense(6)(merged)
+        model.add(Conv2D(256,(3,3),padding = 'same'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+
+        model.add(Conv2D(256,(3,3),padding = 'same'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(MaxPooling2D(2,2))
+
+        def multiply_constant(input):
+            for i in range(self.batch_size*self.time_steps):
+                tmp = tf.multiply(tf.cast(input[i], tf.float32), tf.cast(self.gaussian_weight, tf.float32))
+                tmp = tf.expand_dims(tmp, 0)
+                if i == 0:
+                    res = tmp
+                else:
+                    res = tf.concat([res, tmp], 0)
+            res = tf.reshape(res,[self.batch_size,self.time_steps,
+                                  self.kernel_size,self.kernel_size,self.kernel_num])
+            res = tf.reshape(res,[self.batch_size,self.time_steps,
+                                  self.kernel_size*self.kernel_size*self.kernel_num])
+            return res
+
+        model.add(Lambda(multiply_constant))
+
+        def mean_value(input):
+            return tf.reduce_mean(input,1)
+
+        model.add(LSTM(128,return_sequences = True))
+        model.add(LSTM(6,return_sequences = True))
+        model.add(Lambda(mean_value))
         def classify(input):
             return tf.nn.softmax(input)
-        def mean_value(input):
-            res = tf.reshape(input,[self.batch_size,self.time_steps,num_classes])
-            return tf.reduce_mean(res,1)
-        hidden = Lambda(mean_value)(hidden)
-        output = Lambda(classify)(hidden)
-
-        model = Model(input=[image, gaze], output=output)
-
-
+        model.add(Lambda(classify))
         adam = optimizers.Adam(lr = self.learning_rate)
         model.compile(loss='categorical_crossentropy', optimizer='adam')
         print(model.summary())
+
         return model
+
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
 
@@ -127,6 +156,7 @@ from keras.callbacks import History
 
 def parse_arguments():
 	parser = argparse.ArgumentParser(description='Deep Q Network Argument Parser')
+	parser.add_argument('--env',dest='env',type=str)
 	parser.add_argument('--render',dest='render',type=int,default=0)
 	parser.add_argument('--train',dest='train',type=int,default=1)
 
@@ -135,7 +165,7 @@ def parse_arguments():
 def main(args):
     # generate model
     args = parse_arguments()
-    gaze_net = GazeNet()
+    gaze_net = GazeNet(learning_rate,time_steps,num_classes,batch_size)
     model = gaze_net.model
     #     plot_model(model, to_file='model.png')
     print("generate model!")
@@ -149,14 +179,15 @@ def main(args):
             trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
             train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
                                                             batch_size=batch_size, crop=False,
-                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False
-                                                          )
+                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
+                                                           crop_with_gaze_size=128)
             val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
                                                           batch_size=batch_size, crop=False,
-                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False
-                                                          )
+                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
+                                                           crop_with_gaze_size=128)
             # [img_seq, gaze_seq], output = next(trainGeneratorgDirectory)
             print("fetch data!")
+
             # start training
             # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
 
@@ -174,13 +205,13 @@ def main(args):
                 model.save_weights( save_path + 'weights.hdf5')
     else:
 
-        model.load_weights('model1/'+'weights.hdf5', by_name=False)
+        model.load_weights('model/190/'+'weights.hdf5', by_name=False)
         testGenerator = gaze_gen.GazeDataGenerator(validation_split = 0.2)
         test_data = testGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
                                                         batch_size=batch_size, crop=False,
                                                         gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
                                                         crop_with_gaze_size=128)
-        predicted_labels = model.predict_generator(test_data,steps=None, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=0)
+        predicted_labels = model.predict_generator(test_data,steps=None, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=1)
         print(predicted_labels)
 if __name__ == '__main__':
     main(sys.argv)
