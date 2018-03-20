@@ -135,7 +135,7 @@ class GazeNet():
             return tf.nn.softmax(input)
         model.add(Lambda(classify))
         adam = optimizers.Adam(lr = self.learning_rate)
-        model.compile(loss='categorical_crossentropy', optimizer='adam')
+        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['mae', 'acc'])
         print(model.summary())
 
         return model
@@ -171,7 +171,7 @@ def train(model,pre_trained_model):
     if pre_trained_model != '':
         model.load_weights(pre_trained_model)
     for i in range(total_num_epoch):
-        save_path = 'model2/'+str(i) + '/'
+        save_path = 'model2_new/'+str(i) + '/'
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
@@ -200,17 +200,26 @@ def train(model,pre_trained_model):
         print(hist.history)
         file = open(save_path + 'losses.txt','a')
         file.writelines(["%s\n" % loss  for loss in hist.history.values()])
+
         if i%10 == 0:
             model.save_weights( save_path + 'weights.hdf5')
 def test(model,pre_trained_model):
-    model.load_weights(pre_trained_model, by_name=False)
-    testGenerator = gaze_gen.GazeDataGenerator(validation_split = 0.2)
+    if pre_trained_model!='':
+        model.load_weights(pre_trained_model, by_name=False)
+    testGenerator = gaze_gen.GazeDataGenerator()
     test_data = testGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
                                                     batch_size=batch_size, crop=False,
                                                     gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
                                                     crop_with_gaze_size=128)
-    predicted_labels = model.predict_generator(test_data,steps=None, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=1)
-    print(predicted_labels)
+    print("test_data")
+    print(test_data)
+    loss = model.evaluate_generator(test_data, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False)
+    print("loss")
+    print(loss)
+    print(model.metrics_names)
+    # labels = np.argmax(predicted_labels,axis = 1)
+    # print("labels")
+    # print(labels)
 def main(args):
     # generate model
     args = parse_arguments()
