@@ -40,37 +40,44 @@ dataset_path = '../gaze-net/gaze_dataset'
 learning_rate = 0.0001
 time_steps = 32
 num_classes = 6
-batch_size = 4
+batch_size = 1
 time_skip = 2
 origin_image_size = 360    # size of the origin image before the cropWithGaze
 img_size = 128    # size of the input image for network
 num_channel = 3
-steps_per_epoch=5
-epochs=1
+steps_per_epoch=40
+epochs=5
 validation_step=20
-total_num_epoch = 40
+total_num_epoch = 101
 
 
 class GazeNet():
-    def __init__(self):
+    def __init__(self,learning_rate,time_steps,num_classes,batch_size):
         self.learning_rate = 0.0001
         self.batch_size = batch_size
         self.time_steps = time_steps
         self.model = self.create_model()
 
-    def convolution(self, kernel_size = 5):
+    def convolution(self, kernel_size = 3):
         def f(input):
             filters = 96
             conv1 = Conv2D(filters, kernel_size, strides=(3, 3), padding='valid', activation=None)(input)
+            conv1 = BatchNormalization()(conv1)
+            conv1 = MaxPooling2D(pool_size = 2, padding = 'valid')(conv1)
+            conv1 = Dropout(0.5)(conv1)
             conv1 = Conv2D(filters, kernel_size, strides=(2, 2), padding='valid', activation=None)(conv1)
+            conv1 = Dropout(0.5)(conv1)
             conv1 = Conv2D(filters, kernel_size, strides=(2, 2), padding='valid', activation=None)(conv1)
+            conv1 = MaxPooling2D(pool_size = 2,padding = 'valid')(conv1)
+
             return conv1
         return f
 
     def lstm(self):
         def f(input):
             lstm = LSTM(128,return_sequences=True)(input)
-            lstm = LSTM(96)(lstm)
+            lstm = Dropout(0.5)(lstm)
+            lstm = LSTM(128)(lstm)
             return lstm
         return f
 
@@ -80,6 +87,7 @@ class GazeNet():
             return tf.reshape(image,[self.batch_size*self.time_steps,256,256,3])
         image_reshaped = Lambda(input_reshape)(image)
         image_embedding = self.convolution()(image_reshaped)
+        image_embedding = Dropout(0.5)(image_embedding)
         flatten = Flatten()(image_embedding)
 
         gaze = Input(shape=(self.time_steps,3,))
@@ -98,14 +106,14 @@ class GazeNet():
         def mean_value(input):
             res = tf.reshape(input,[self.batch_size,self.time_steps,num_classes])
             return tf.reduce_mean(res,1)
-        hidden = Lambda(mean_value)(hidden)
+        # hidden = Lambda(mean_value)(hidden)
         output = Lambda(classify)(hidden)
 
         model = Model(input=[image, gaze], output=output)
 
 
         adam = optimizers.Adam(lr = self.learning_rate)
-        model.compile(loss='categorical_crossentropy', optimizer='adam')
+        model.compile(loss='categorical_crossentropy', optimizer='adam',metrics=['mae', 'acc'])
         print(model.summary())
         return model
     def save_model_weights(self,save_path):
@@ -127,60 +135,76 @@ from keras.callbacks import History
 
 def parse_arguments():
 	parser = argparse.ArgumentParser(description='Deep Q Network Argument Parser')
-	parser.add_argument('--render',dest='render',type=int,default=0)
 	parser.add_argument('--train',dest='train',type=int,default=1)
+	parser.add_argument('--model',dest='model',type=str, default='')
+
 
 	return parser.parse_args()
 
+def train(model,pre_trained_model):
+    if pre_trained_model != '':
+        model.load_weights(pre_trained_model)
+    for i in range(total_num_epoch):
+        save_path = 'model2/'+str(i) + '/'
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+
+        trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
+        train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
+                                                        batch_size=batch_size, crop=False,
+                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
+                                                       crop_with_gaze_size=128)
+        val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
+                                                      batch_size=batch_size, crop=False,
+                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
+                                                       crop_with_gaze_size=128)
+        # [img_seq, gaze_seq], output = next(trainGeneratorgDirectory)
+        print("fetch data!")
+
+        # start training
+        # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
+
+        # callbacks = gaze_net.save_model_weights(checkpointsString)
+        # history = History()
+        # checkpointer = ModelCheckpoint(filepath='/tmp/weights.hdf5', verbose=1, save_best_only=True)
+
+        hist = model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,
+                        validation_data=val_data, validation_steps=validation_step, shuffle=False)
+        print("finished training!")
+        print(hist.history)
+        file = open(save_path + 'losses.txt','a')
+        file.writelines(["%s\n" % loss  for loss in hist.history.values()])
+
+        if i%10 == 0:
+            model.save_weights( save_path + 'weights.hdf5')
+def test(model,pre_trained_model):
+    if pre_trained_model!='':
+        model.load_weights(pre_trained_model, by_name=False)
+    testGenerator = gaze_gen.GazeDataGenerator()
+    test_data = testGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
+                                                    batch_size=batch_size, crop=False,
+                                                    gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
+                                                    crop_with_gaze_size=128)
+    print("test_data")
+    print(test_data)
+    loss = model.evaluate_generator(test_data, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False)
+    print("loss")
+    print(loss)
+    print(model.metrics_names)
+    # labels = np.argmax(predicted_labels,axis = 1)
+    # print("labels")
+    # print(labels)
 def main(args):
     # generate model
     args = parse_arguments()
-    gaze_net = GazeNet()
+    gaze_net = GazeNet(learning_rate,time_steps,num_classes,batch_size)
     model = gaze_net.model
     #     plot_model(model, to_file='model.png')
     print("generate model!")
     if args.train == 1:
-    # generatr generator
-        for i in range(total_num_epoch):
-            save_path = 'model1/'+str(i) + '/'
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
-
-            trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
-            train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
-                                                            batch_size=batch_size, crop=False,
-                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False
-                                                          )
-            val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
-                                                          batch_size=batch_size, crop=False,
-                                                            gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False
-                                                          )
-            # [img_seq, gaze_seq], output = next(trainGeneratorgDirectory)
-            print("fetch data!")
-            # start training
-            # checkpointsString = "models/" + 'weights.{epoch:02d}-{val_loss:.2f}.hdf5'
-
-            # callbacks = gaze_net.save_model_weights(checkpointsString)
-            # history = History()
-            # checkpointer = ModelCheckpoint(filepath='/tmp/weights.hdf5', verbose=1, save_best_only=True)
-
-            hist = model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,
-                            validation_data=val_data, validation_steps=validation_step, shuffle=False)
-            print("finished training!")
-            print(hist.history)
-            file = open(save_path + 'losses.txt','a')
-            file.writelines(["%s\n" % loss  for loss in hist.history.values()])
-            if i%10 == 0:
-                model.save_weights( save_path + 'weights.hdf5')
+        train(model,args.model)
     else:
+        test(model,args.model)
 
-        model.load_weights('model1/'+'weights.hdf5', by_name=False)
-        testGenerator = gaze_gen.GazeDataGenerator(validation_split = 0.2)
-        test_data = testGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
-                                                        batch_size=batch_size, crop=False,
-                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
-                                                        crop_with_gaze_size=128)
-        predicted_labels = model.predict_generator(test_data,steps=None, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=0)
-        print(predicted_labels)
 if __name__ == '__main__':
     main(sys.argv)
