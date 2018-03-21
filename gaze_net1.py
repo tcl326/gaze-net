@@ -34,6 +34,7 @@ K.set_image_dim_ordering('tf')
 import keras.callbacks
 
 import gazenetGenerator1 as gaze_gen
+from compare_predict_truth import compare1
 
 # global param
 dataset_path = '../gaze-net/gaze_dataset'
@@ -100,7 +101,9 @@ class GazeNet():
 
 
         merged = Concatenate()([flatten, gaze_embedding])
+        # print(merged)
         hidden = Dense(6)(merged)
+        # print(hidden)
         def classify(input):
             return tf.nn.softmax(input)
         def mean_value(input):
@@ -170,8 +173,13 @@ def train(model,pre_trained_model):
 
         hist = model.fit_generator(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs,
                         validation_data=val_data, validation_steps=validation_step, shuffle=False)
+        # input, truth = next(train_data)
+        # [img_seq, gaze_seq] = input
+        # predict = model.predict([img_seq, gaze_seq], batch_size=None, steps=1)
+
+        print(hist)
         print("finished training!")
-        print(hist.history)
+        # print(hist.history)
         file = open(save_path + 'losses.txt','a')
         file.writelines(["%s\n" % loss  for loss in hist.history.values()])
 
@@ -186,11 +194,13 @@ def test(model,pre_trained_model):
                                                     gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
                                                     crop_with_gaze_size=128)
     print("test_data")
-    print(test_data)
-    loss = model.evaluate_generator(test_data, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False)
-    print("loss")
-    print(loss)
-    print(model.metrics_names)
+    # print(test_data)
+    # loss = model.predict_generator(test_data, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False)
+    # print("loss")
+    # print(loss)
+    # print(model.metrics_names)
+    err_list = compare1(model, test_data, 49)
+    print(err_list)
     # labels = np.argmax(predicted_labels,axis = 1)
     # print("labels")
     # print(labels)

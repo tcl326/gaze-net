@@ -34,13 +34,14 @@ K.set_image_dim_ordering('tf')
 import keras.callbacks
 
 import gazenetGenerator2 as gaze_gen
+from compare_predict_truth import compare
 
 # global param
 dataset_path = '../gaze-net/gaze_dataset'
 learning_rate = 0.0001
 time_steps = 32
 num_classes = 6
-batch_size = 4
+batch_size = 1
 time_skip = 2
 origin_image_size = 360    # size of the origin image before the cropWithGaze
 img_size = 128    # size of the input image for network
@@ -204,22 +205,23 @@ def train(model,pre_trained_model):
         if i%10 == 0:
             model.save_weights( save_path + 'weights.hdf5')
 def test(model,pre_trained_model):
-    if pre_trained_model!='':
-        model.load_weights(pre_trained_model, by_name=False)
+    # if pre_trained_model!='':
+    #     model.load_weights(pre_trained_model, by_name=False)
     testGenerator = gaze_gen.GazeDataGenerator()
-    test_data = testGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
-                                                    batch_size=batch_size, crop=False,
+    test_data = testGenerator.flow_from_directory(dataset_path, time_steps=time_steps,
+                                                    batch_size=batch_size, crop=False, shuffle=False,
                                                     gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=True,
                                                     crop_with_gaze_size=128)
-    print("test_data")
-    print(test_data)
-    loss = model.evaluate_generator(test_data, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False)
-    print("loss")
-    print(loss)
-    print(model.metrics_names)
-    # labels = np.argmax(predicted_labels,axis = 1)
-    # print("labels")
-    # print(labels)
+    # print("test_data")
+    # print(test_data)
+    # # loss = model.evaluate_generator(test_data, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False)
+    # # print("loss")
+    # # print(loss)
+    # # print(model.metrics_names)
+    # predict = model.predict_generator(test_data)
+    err_list = compare(model, test_data, 49)
+    print(err_list)
+
 def main(args):
     # generate model
     args = parse_arguments()
