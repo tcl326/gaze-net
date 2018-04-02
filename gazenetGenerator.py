@@ -998,7 +998,7 @@ class DirectoryIterator(Iterator):
                                             (dirpath, self.white_list_formats, self.time_steps, self.time_skip, split,
                                              self.class_indices, follow_links)))
         self.min_class_size = float('inf')
-
+        self.internames = []
         for res in results:
             classes, internames = res.get()
             self.dataset_dict[classes[0]] = internames
