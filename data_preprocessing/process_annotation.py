@@ -7,11 +7,11 @@ import os
 import math
 from shutil import copyfile
 
-data_dir = ''
+data_dir = '../../gaze-net-data/data_collection/'
 dst_data_dir = 'gaze_dataset/'
 
 # load npz data
-file = np.load(data_dir + 'annotation.npz')
+file = np.load('annotation.npz')
 name_list = file['arr_0']
 target_list = file['arr_1']
 start_list = file['arr_2']
@@ -34,16 +34,16 @@ for i in range(num):
 	target = target_list[i]
 	# print('target')
 	# print(target)
-	start_count = start_list[i]
-	end_count = end_list[i]
+	start_count = int(start_list[i])
+	end_count = int(end_list[i])
 	valid_period.append([start_count, end_count])
 	#two valid period per interaction
 	if i != num - 1 and name == name_list[i+1]:
 		continue
-	hand_count = hand_list[i]
+	hand_count = int(hand_list[i])
 
 	# make a new subdir
-	img_dst_dir = dst_data_dir + str(target) + '/' + name.split('/')[-1] + '/'
+	img_dst_dir = dst_data_dir + str(target) + '/' + name + '/'
 	if not os.path.exists(img_dst_dir):
 		os.makedirs(img_dst_dir)
 
@@ -52,8 +52,9 @@ for i in range(num):
 	num_img = hand_count - 2
 	for j in range(1, hand_count):
 		count = str("%06d" % j)
-		img_name = data_dir + name + '/' + name.split('/')[-1] + count + '.jpg'
+		img_name = data_dir + name + '/' + name + count + '.jpg'
 		img_dst_name =  img_dst_dir + count + '.jpg'
+		# print(img_name)
 		# no input image
 		if not os.path.exists(img_name):
 			num_img -= 1
@@ -73,7 +74,7 @@ for i in range(num):
 	np.save(img_dst_dir + 'label.npy', label)
 
 	# save valid gaze txt
-	gaze_src_path = data_dir + name + '/' + name.split('/')[-1] + 'testfile.txt'
+	gaze_src_path = data_dir + name + '/' + name + 'testfile.txt'
 	gaze_src_file = open(gaze_src_path)
 	gaze_list_ori = gaze_src_file.readlines()
 	gaze_src_file.close()

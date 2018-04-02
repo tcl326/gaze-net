@@ -4,8 +4,8 @@
 import openpyxl as px
 import numpy as np
 
-data_dir = ''
-xls = px.load_workbook(data_dir + 'annotation_format_new.xlsx')
+data_dir = '../../gaze-net-data/data_collection/'
+xls = px.load_workbook('annotation_format_new.xlsx')
 
 
 target_dict = {'w':1, 'g':2, 'b':3, 'y':4, 'o':5}
@@ -16,8 +16,8 @@ start_list = []
 end_list = []
 hand_list = []
 
-# set = ['set1', 'set2', 'set3', 'set4']
-set = ['set5']
+set = ['set1', 'set2', 'set3', 'set4']
+# set = ['set5']
 for s in set:
 	sheet = xls.get_sheet_by_name(name=s)
 	num = 1
@@ -38,7 +38,7 @@ for s in set:
 		if sheet.cell(column=2, row=num).value == 'p' or sheet.cell(column=2, row=num).value == 'r':
 			num += 1
 			continue
-		tmp = s + '/' + sheet.cell(column=1, row=num).value.split('/')[-1]
+		tmp = sheet.cell(column=1, row=num).value.split('/')[-1]
 		name_list.append(tmp)
 		print(tmp)
 		# print(sheet.cell(column=2, row=num).value)
@@ -62,5 +62,5 @@ end_list = np.array(end_list)
 hand_list = np.array(hand_list)
 print(len(end_list))
 print(len(hand_list))
-np.savez(data_dir + 'annotation.npz', name_list, target_list, start_list, end_list, hand_list)
+np.savez('annotation.npz', name_list, target_list, start_list, end_list, hand_list)
 print('save annotation to npy sucessfully!')
