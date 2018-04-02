@@ -7,12 +7,11 @@ import os
 import math
 from shutil import copyfile
 
-data_dir = 'data_collection/'
-dst_data_dir = 'gaze_dataset/'
-fps = 30
+data_dir = '../../gaze-net-data/data_collection/'
+dst_data_dir = '../gaze_dataset_old/'
 
 # load npz data
-file = np.load(data_dir + 'annotation.npz')
+file = np.load('annotation_old.npz')
 name_list = file['arr_0']
 target_list = file['arr_1']
 start_list = file['arr_2']
@@ -31,8 +30,8 @@ for i in range(num):
 	print(i)
 	name = name_list[i]
 	target = target_list[i]
-	start_count = start_list[i]
-	end_count = end_list[i]
+	start_count = int(start_list[i])
+	end_count = int(end_list[i])
 	valid_period.append([start_count, end_count])
 
 	directory = os.path.dirname(dst_data_dir + str(target) + '/' + name)
@@ -44,8 +43,13 @@ for i in range(num):
 	if i != 0 and name == name_list[i-1]:
 		add = '_1'
 	img_dst_dir = dst_data_dir + str(target) + '/' + name + add + '/'
+	print(img_dst_dir)
+	if not os.path.exists(img_dst_dir):
+		os.makedirs(img_dst_dir)
 
 	# save valid images
+	print(start_count)
+	print(end_count)
 	for j in range(start_count, end_count):
 		count = str("%06d" % j)
 		img_name = data_dir + name + '/' + name + count + '.jpg'
@@ -60,6 +64,7 @@ for i in range(num):
 
 	# save valid gaze txt
 	gaze_src_path = data_dir + name + '/' + name + 'testfile.txt'
+	# print(gaze_src_path)
 	gaze_dst_path = img_dst_dir + 'gaze.txt'
 	gaze_src_file = open(gaze_src_path)
 	gaze_dst_file = open(gaze_dst_path, 'w')
@@ -81,8 +86,14 @@ for i in range(num):
 			add = ''
 			if s != 0:
 				add = '_1'
-			img_dst_dir = dst_data_dir + str(5) + '/' + name + add + '/'
-			# print(img_dst_dir)
+			img_dst_dir = dst_data_dir + str(5) + '/' + name + add
+			if not os.path.exists(img_dst_dir):
+				# print("get in here")
+				os.makedirs(img_dst_dir)
+			img_dst_dir = img_dst_dir + '/'
+			print(img_dst_dir)
+			print(s)
+			print(e)
 			for j in range(s, e):
 				count = str("%06d" % j)
 				img_name = data_dir + name + '/' + name + count + '.jpg'
@@ -91,10 +102,11 @@ for i in range(num):
 				if not os.path.exists(img_name):
 					continue
 				# no output dir
-				if not os.path.exists(img_dst_dir):
-					os.makedirs(img_dst_dir)
+				# if not os.path.exists(img_dst_dir):
+				# 	print("get in here")
+				# 	os.makedirs(img_dst_dir)
 				copyfile(img_name, img_dst_name)
-			
+
 			# save valid gaze txt
 			gaze_dst_path = img_dst_dir + 'gaze.txt'
 			gaze_dst_file = open(gaze_dst_path, 'w')
@@ -104,7 +116,3 @@ for i in range(num):
 
 		valid_period = []
 		print('clear')
-
-
-
-
