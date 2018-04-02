@@ -140,7 +140,7 @@ def train(model,pre_trained_model):
     if pre_trained_model != '':
         model.load_weights(pre_trained_model)
     for i in range(total_num_epoch):
-        save_path = 'model2/'+str(i) + '/'
+        save_path = 'model1/'+str(i) + '/'
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
