@@ -1009,7 +1009,7 @@ class DirectoryIterator(Iterator):
             if class_size < self.min_class_size:
                 self.min_class_size = class_size
             self.classes[i:i + len(classes)] = classes
-            # self.internames += internames
+            self.internames += internames
             i += len(classes)
 
         self.data_set_size = self.min_class_size * self.num_classes
@@ -1017,11 +1017,11 @@ class DirectoryIterator(Iterator):
         pool.close()
         pool.join()
         super(DirectoryIterator, self).__init__(self.data_set_size, batch_size, shuffle, seed)
-        self.internames = None
+        # self.internames = None
         print('There are %d Interactions per class for to %d classes.' % (self.min_class_size, self.num_classes))
 
     def reset(self):
-        print('newfile')
+        # print('newfile')
         self.internames = []
         for d in self.dataset_dict:
             self.internames += list(np.random.choice(self.dataset_dict[d], size=(self.min_class_size), replace=False))
