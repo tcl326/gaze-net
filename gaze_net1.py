@@ -38,7 +38,7 @@ time_skip = 2
 origin_image_size = 360    # size of the origin image before the cropWithGaze
 img_size = 128    # size of the input image for network
 num_channel = 3
-steps_per_epoch=5
+steps_per_epoch=28*6
 epochs=5
 validation_step=20
 total_num_epoch = 101
@@ -164,7 +164,7 @@ def train(model,pre_trained_model):
     if pre_trained_model != '':
         model.load_weights(pre_trained_model)
     for i in range(total_num_epoch):
-        save_path = 'model1/'+str(i) + '/'
+        save_path = 'test/model1/'+str(i) + '/'
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 

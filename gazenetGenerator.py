@@ -843,7 +843,11 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         x = img_to_array(img, data_format=None)
         img_sequence.append(x)
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
-    return np.array(img_sequence), gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
+    gaze_sequence = gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
+    if gaze_sequence.shape[0] < 32:
+        print(interaction_path)
+        raise NameError(interaction_path)
+    return np.array(img_sequence), gaze_sequence
 
 class DirectoryIterator(Iterator):
     """Iterator capable of reading images from a directory on disk.

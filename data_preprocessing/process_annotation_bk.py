@@ -40,8 +40,12 @@ for i in range(num):
 
 	# same dataset
 	add = ''
-	if i != 0 and name == name_list[i-1]:
-		add = '_1'
+	rep = np.where(name_list == name)[0]
+	for k in range(len(rep)):
+		if rep[k] == i:
+			add = '_' + str(k)
+	# if i != 0 and name == name_list[i-1]:
+	# 	add = '_'
 	img_dst_dir = dst_data_dir + str(target) + '/' + name + add + '/'
 	print(img_dst_dir)
 	if not os.path.exists(img_dst_dir):
@@ -83,7 +87,13 @@ for i in range(num):
 		for s, e in [[0, start_valid], [end_valid, len(gaze_list_ori)//3]]:
 			if s >= e:
 				continue
+
 			add = ''
+			rep = np.where(name_list == name)[0]
+			for k in range(len(rep)):
+				if rep[k] == i:
+					add = '_' + str(k)
+
 			if s != 0:
 				add = '_1'
 			img_dst_dir = dst_data_dir + str(5) + '/' + name + add
