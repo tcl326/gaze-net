@@ -51,7 +51,7 @@ class GazeNet():
         self.time_steps = time_steps
         self.model = self.create_model()
 
-    def convolution(self, kernel_size = 3):
+    def convolution(self, kernel_size = 5):
         def f(input):
             filters = 96
             conv1 = Conv2D(filters, kernel_size, strides=(3, 3), padding='valid', activation=None)(input)
@@ -64,13 +64,13 @@ class GazeNet():
             conv1 = MaxPooling2D(pool_size = 2,padding = 'valid')(conv1)
             return conv1
         return f
-    def convolution3D(self, kernel_size = 3):
+    def convolution3D(self, kernel_size = 5):
         def f(input):
             filters = 96
             conv1 = Conv3D(filters, kernel_size, strides=(3, 3, 3), padding='valid', activation=None)(input)
             conv1 = BatchNormalization()(conv1)
             conv1 = MaxPooling3D(pool_size = (2,3,3), padding = 'valid')(conv1)
-            conv1 = Dropout(0.5)(conv1)
+            # conv1 = Dropout(0.5)(conv1)
             # conv1 = Conv3D(filters, kernel_size, strides=(2, 2, 2), padding='valid', activation=None)(conv1)
             conv1 = Dropout(0.5)(conv1)
             conv1 = Conv3D(filters, kernel_size, strides=(1, 1, 1), padding='valid', activation=None)(conv1)
@@ -90,6 +90,7 @@ class GazeNet():
             lstm = LSTM(128,return_sequences=True)(input)
             lstm = Dropout(0.5)(lstm)
             lstm = LSTM(128,return_sequences=True)(lstm)
+            lstm = Dropout(0.5)(lstm)
             return lstm
         return f
     def create_model(self):
@@ -107,13 +108,13 @@ class GazeNet():
         def input_gaze_reshape(input):
             return tf.reshape(input,[-1,self.time_steps,3])
         gaze_reshaped = Lambda(input_gaze_reshape)(gaze)
-        print(gaze_reshaped)
+        # print(gaze_reshaped)
         # gaze_embedding = self.lstm()(gaze_reshaped)
         gaze_embedding = self.lstm2D()(gaze_reshaped)
         def mean_value(input):
             return tf.reduce_mean(input,1)
         gaze_embedding = Lambda(mean_value)(gaze_embedding)
-        print(gaze_embedding)
+        # print(gaze_embedding)
 
 
         merged = Concatenate()([flatten, gaze_embedding])
