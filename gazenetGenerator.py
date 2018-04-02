@@ -331,18 +331,18 @@ class GazeDataGenerator(object):
                               'which overrides setting of '
                               '`samplewise_center`.')
 
-    def flow(self, x, y=None, batch_size=32, shuffle=True, seed=None,
-             save_to_dir=None, save_prefix='', save_format='png', subset=None):
-        return NumpyArrayIterator(
-            x, y, self,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            seed=seed,
-            data_format=self.data_format,
-            save_to_dir=save_to_dir,
-            save_prefix=save_prefix,
-            save_format=save_format,
-            subset=subset)
+    # def flow(self, x, y=None, batch_size=32, shuffle=True, seed=None,
+    #          save_to_dir=None, save_prefix='', save_format='png', subset=None):
+    #     return NumpyArrayIterator(
+    #         x, y, self,
+    #         batch_size=batch_size,
+    #         shuffle=shuffle,
+    #         seed=seed,
+    #         data_format=self.data_format,
+    #         save_to_dir=save_to_dir,
+    #         save_prefix=save_prefix,
+    #         save_format=save_format,
+    #         subset=subset)
 
     def flow_from_directory(self, directory,
                             time_steps=32,
@@ -629,6 +629,7 @@ class Iterator(Sequence):
         self._set_index_array()
 
     def reset(self):
+        print('orig')
         self.batch_index = 0
 
     def _flow_index(self):
@@ -644,6 +645,7 @@ class Iterator(Sequence):
             if self.n > current_index + self.batch_size:
                 self.batch_index += 1
             else:
+                self.reset()
                 self.batch_index = 0
             self.total_batches_seen += 1
             yield self.index_array[current_index:
@@ -665,115 +667,6 @@ class Iterator(Sequence):
             A batch of transformed samples.
         """
         raise NotImplementedError
-
-
-class NumpyArrayIterator(Iterator):
-    """Iterator yielding data from a Numpy array.
-    # Arguments
-        x: Numpy array of input data.
-        y: Numpy array of targets data.
-        image_data_generator: Instance of `ImageDataGenerator`
-            to use for random transformations and normalization.
-        batch_size: Integer, size of a batch.
-        shuffle: Boolean, whether to shuffle the data between epochs.
-        seed: Random seed for data shuffling.
-        data_format: String, one of `channels_first`, `channels_last`.
-        save_to_dir: Optional directory where to save the pictures
-            being yielded, in a viewable format. This is useful
-            for visualizing the random transformations being
-            applied, for debugging purposes.
-        save_prefix: String prefix to use for saving sample
-            images (if `save_to_dir` is set).
-        save_format: Format to use for saving sample images
-            (if `save_to_dir` is set).
-        subset: Subset of data (`"training"` or `"validation"`) if
-            validation_split is set in ImageDataGenerator.
-    """
-
-    def __init__(self, x, y, image_data_generator,
-                 batch_size=32, shuffle=False, seed=None,
-                 data_format=None,
-                 save_to_dir=None, save_prefix='', save_format='png',
-                 subset=None):
-        if y is not None and len(x) != len(y):
-            raise ValueError('`x` (images tensor) and `y` (labels) '
-                             'should have the same length. '
-                             'Found: x.shape = %s, y.shape = %s' %
-                             (np.asarray(x).shape, np.asarray(y).shape))
-        if subset is not None:
-            if subset not in {'training', 'validation'}:
-                raise ValueError('Invalid subset name:', subset,
-                                 '; expected "training" or "validation".')
-            split_idx = int(len(x) * image_data_generator._validation_split)
-            if subset == 'validation':
-                x = x[:split_idx]
-                if y is not None:
-                    y = y[:split_idx]
-            else:
-                x = x[split_idx:]
-                if y is not None:
-                    y = y[split_idx:]
-        if data_format is None:
-            data_format = K.image_data_format()
-        self.x = np.asarray(x, dtype=K.floatx())
-        if self.x.ndim != 4:
-            raise ValueError('Input data in `NumpyArrayIterator` '
-                             'should have rank 4. You passed an array '
-                             'with shape', self.x.shape)
-        channels_axis = 3 if data_format == 'channels_last' else 1
-        if self.x.shape[channels_axis] not in {1, 3, 4}:
-            warnings.warn('NumpyArrayIterator is set to use the '
-                          'data format convention "' + data_format + '" '
-                          '(channels on axis ' + str(channels_axis) + '), i.e. expected '
-                          'either 1, 3 or 4 channels on axis ' + str(channels_axis) + '. '
-                          'However, it was passed an array with shape ' + str(self.x.shape) +
-                          ' (' + str(self.x.shape[channels_axis]) + ' channels).')
-        if y is not None:
-            self.y = np.asarray(y)
-        else:
-            self.y = None
-        self.image_data_generator = image_data_generator
-        self.data_format = data_format
-        self.save_to_dir = save_to_dir
-        self.save_prefix = save_prefix
-        self.save_format = save_format
-        super(NumpyArrayIterator, self).__init__(x.shape[0], batch_size, shuffle, seed)
-
-    def _get_batches_of_transformed_samples(self, index_array):
-        batch_x = np.zeros(tuple([len(index_array)] + list(self.x.shape)[1:]),
-                           dtype=K.floatx())
-        for i, j in enumerate(index_array):
-            x = self.x[j]
-            if self.image_data_generator.preprocessing_function:
-                x = self.image_data_generator.preprocessing_function(x)
-            x = self.image_data_generator.random_transform(x.astype(K.floatx()))
-            x = self.image_data_generator.standardize(x)
-            batch_x[i] = x
-        if self.save_to_dir:
-            for i, j in enumerate(index_array):
-                img = array_to_img(batch_x[i], self.data_format, scale=True)
-                fname = '{prefix}_{index}_{hash}.{format}'.format(prefix=self.save_prefix,
-                                                                  index=j,
-                                                                  hash=np.random.randint(1e4),
-                                                                  format=self.save_format)
-                img.save(os.path.join(self.save_to_dir, fname))
-        if self.y is None:
-            return batch_x
-        batch_y = self.y[index_array]
-        return batch_x, batch_y
-
-    def next(self):
-        """For python 2.x.
-        # Returns
-            The next batch.
-        """
-        # Keeps under lock only the mechanism which advances
-        # the indexing of each batch.
-        with self.lock:
-            index_array = next(self.index_generator)
-        # The transformation of images is not under thread lock
-        # so it can be done in parallel
-        return self._get_batches_of_transformed_samples(index_array)
 
 
 def _iter_valid_files(directory, white_list_formats, follow_links):
@@ -1091,8 +984,8 @@ class DirectoryIterator(Iterator):
 
         # second, build an index of the images in the different class subfolders
         results = []
-
-        self.internames = []
+        self.dataset_dict = {}
+        self.curr_dataset = []
         # print(self.samples)
         self.classes = np.zeros((self.samples,), dtype='int32')
         i = 0
@@ -1100,18 +993,36 @@ class DirectoryIterator(Iterator):
             results.append(pool.apply_async(_list_valid_interactions_in_directory,
                                             (dirpath, self.white_list_formats, self.time_steps, self.time_skip, split,
                                              self.class_indices, follow_links)))
+        self.min_class_size = float('inf')
+        self.internames = []
         for res in results:
             classes, internames = res.get()
+            self.dataset_dict[classes[0]] = internames
             # print(self.classes)
             # print(classes)
             # print(internames)
+            class_size = len(classes)
+            if class_size < self.min_class_size:
+                self.min_class_size = class_size
             self.classes[i:i + len(classes)] = classes
             self.internames += internames
             i += len(classes)
 
+        self.data_set_size = self.min_class_size * self.num_classes
+
         pool.close()
         pool.join()
-        super(DirectoryIterator, self).__init__(self.samples, batch_size, shuffle, seed)
+        super(DirectoryIterator, self).__init__(self.data_set_size, batch_size, shuffle, seed)
+        # self.internames = None
+        print('There are %d Interactions per class for to %d classes.' % (self.min_class_size, self.num_classes))
+
+    def reset(self):
+        # print('newfile')
+        self.internames = []
+        for d in self.dataset_dict:
+            self.internames += list(np.random.choice(self.dataset_dict[d], size=(self.min_class_size), replace=False))
+
+        self.batch_index = 0
 
     def _crop_with_gaze(self, images, gazes):
         batch_size = self.batch_size
@@ -1146,16 +1057,6 @@ class DirectoryIterator(Iterator):
         return img_seq
 
     def _get_batches_of_transformed_samples(self, index_array):
-        # index_array = np.array([1,2])
-        # print(index_array.shape[0])
-
-        if index_array.shape[0]<self.batch_size:
-            ele = index_array[index_array.shape[0]-1]
-            while True:
-                index_array = np.append(index_array,ele)
-                if index_array.shape[0] == self.batch_size:
-                    break
-            # index_array = np.append(index_array,index_array[0:self.batch_size-index_array.shape[0]])
         images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
         gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
