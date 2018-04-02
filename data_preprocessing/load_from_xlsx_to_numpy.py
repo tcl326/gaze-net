@@ -4,12 +4,11 @@
 import openpyxl as px
 import numpy as np
 
-fps = 30
 data_dir = ''
 xls = px.load_workbook(data_dir + 'annotation_format_new.xlsx')
 
 
-target_dict = {'w':0, 'g':1, 'b':2, 'y':3, 'o':4}
+target_dict = {'w':1, 'g':2, 'b':3, 'y':4, 'o':5}
 num = 1
 name_list = []
 target_list = []
@@ -17,20 +16,28 @@ start_list = []
 end_list = []
 hand_list = []
 
-set = ['set1', 'set2', 'set3', 'set4']
+# set = ['set1', 'set2', 'set3', 'set4']
+set = ['set5']
 for s in set:
 	sheet = xls.get_sheet_by_name(name=s)
 	num = 1
 	print(s)
 	for row in sheet.iter_rows():
+		# the first line
 		if num == 1:
 			num += 1
 			continue
+		# the sheet end
+		if sheet.cell(column=1, row=num).value == None:
+			break
+		# garbage data
 		if sheet.cell(column=6, row=num).value == 'N':
 			num += 1
 			continue
-		if sheet.cell(column=1, row=num).value == None:
-			break
+		# change the color, delete red/pink
+		if sheet.cell(column=2, row=num).value == 'p' or sheet.cell(column=2, row=num).value == 'r':
+			num += 1
+			continue
 		tmp = s + '/' + sheet.cell(column=1, row=num).value.split('/')[-1]
 		name_list.append(tmp)
 		print(tmp)

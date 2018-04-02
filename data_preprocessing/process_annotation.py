@@ -28,85 +28,61 @@ for i in range(5):
 num = name_list.shape[0]
 valid_period = []
 for i in range(num):
-	print(i)
+	# print(i)
 	name = name_list[i]
+	print(name)
 	target = target_list[i]
+	# print('target')
+	# print(target)
 	start_count = start_list[i]
 	end_count = end_list[i]
 	valid_period.append([start_count, end_count])
-	if i != num - 1 and name == name_list[i+1]:  #two patch per interaction
-		valid_period = []
+	#two valid period per interaction
+	if i != num - 1 and name == name_list[i+1]:
 		continue
 	hand_count = hand_list[i]
 
-	label = np.ones((hand_count,1))
-
-	directory = os.path.dirname(dst_data_dir + str(target) + '/' + name)
-	if not os.path.exists(directory):
-		os.makedirs(directory)
-
-	# same dataset
-	add = ''
-	if i != 0 and name == name_list[i-1]:
-		add = '_1'
-	img_dst_dir = dst_data_dir + str(target) + '/' + name + add + '/'
+	# make a new subdir
+	img_dst_dir = dst_data_dir + str(target) + '/' + name.split('/')[-1] + '/'
+	if not os.path.exists(img_dst_dir):
+		os.makedirs(img_dst_dir)
 
 	# save valid images
-	for j in range(start_count, end_count):
+	print(valid_period)
+	num_img = hand_count - 2
+	for j in range(1, hand_count):
 		count = str("%06d" % j)
-		img_name = data_dir + name + '/' + name + count + '.jpg'
+		img_name = data_dir + name + '/' + name.split('/')[-1] + count + '.jpg'
 		img_dst_name =  img_dst_dir + count + '.jpg'
 		# no input image
 		if not os.path.exists(img_name):
+			num_img -= 1
+			print("miss")
 			continue
-		# no output dir
-		if not os.path.exists(img_dst_dir):
-			os.makedirs(img_dst_dir)
 		copyfile(img_name, img_dst_name)
+		# print(img_name)
+	print("number of img")
+	print(num_img)
+
+	# make the label
+	label = np.zeros((hand_count-2,1))
+	for p in valid_period:
+		label[p[0]-1:p[1]-1] = target
+	print('length of label')
+	print(len(label))
+	np.save(img_dst_dir + 'label.npy', label)
 
 	# save valid gaze txt
-	gaze_src_path = data_dir + name + '/' + name + 'testfile.txt'
-	gaze_dst_path = img_dst_dir + 'gaze.txt'
+	gaze_src_path = data_dir + name + '/' + name.split('/')[-1] + 'testfile.txt'
 	gaze_src_file = open(gaze_src_path)
-	gaze_dst_file = open(gaze_dst_path, 'w')
 	gaze_list_ori = gaze_src_file.readlines()
 	gaze_src_file.close()
-	gaze_list = gaze_list_ori[3*start_count:3*end_count]
-	gaze_dst_file.writelines(gaze_list)
-	gaze_dst_file.close()
+	gaze_list = gaze_list_ori[0:3*(hand_count-2)]
+	gaze_list = [float(gaze_list[i]) for k in range(len(gaze_list))]
+	print('length of gaze list')
+	print(len(gaze_list)//3)
+	# print(len(gaze_list))
+	np.save(img_dst_dir + 'gaze.npy', gaze_list)
 
-	# save invalid images
-	if i != num - 1 and name != name_list[i+1]:
-		num_per = len(valid_period)
-		start_valid = valid_period[0][0]
-		end_valid = valid_period[num_per-1][1]
-
-		for s, e in [[0, start_valid], [end_valid, len(gaze_list_ori)//3]]:
-			if s >= e:
-				continue
-			add = ''
-			if s != 0:
-				add = '_1'
-			img_dst_dir = dst_data_dir + str(5) + '/' + name + add + '/'
-			# print(img_dst_dir)
-			for j in range(s, e):
-				count = str("%06d" % j)
-				img_name = data_dir + name + '/' + name + count + '.jpg'
-				img_dst_name =  img_dst_dir + count + '.jpg'
-				# no input image
-				if not os.path.exists(img_name):
-					continue
-				# no output dir
-				if not os.path.exists(img_dst_dir):
-					os.makedirs(img_dst_dir)
-				copyfile(img_name, img_dst_name)
-
-			# save valid gaze txt
-			gaze_dst_path = img_dst_dir + 'gaze.txt'
-			gaze_dst_file = open(gaze_dst_path, 'w')
-			gaze_list = gaze_list_ori[3*s:3*e]
-			gaze_dst_file.writelines(gaze_list)
-			gaze_dst_file.close()
-
-		valid_period = []
-		print('clear')
+	valid_period = []
+	# print('clear')
