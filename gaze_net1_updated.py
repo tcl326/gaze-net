@@ -100,11 +100,11 @@ class GazeNet():
             return lstm
         return f
     def create_model(self):
-        image = Input(shape=(self.time_steps,256,256,3,))
-        # def input_reshape(image):
+        image = Input(shape=(256,256,3,))
+        def input_reshape(image):
         #     return tf.reshape(image,[-1,time_steps,256,256,3])
-            # return tf.reshape(image,[self.batch_size*self.time_steps,256,256,3])
-        # image_reshaped = Lambda(input_reshape)(image)
+            return tf.reshape(image,[-1,256,256,3])
+        image_reshaped = Lambda(input_reshape)(image)
         image_embedding = self.convolution()(image)
         # image_embedding = self.convolution3D()(image_reshaped)
         flatten = Flatten()(image_embedding)
