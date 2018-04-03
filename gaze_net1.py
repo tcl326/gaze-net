@@ -24,7 +24,8 @@ from keras.utils import plot_model
 from keras import backend as K
 K.set_image_dim_ordering('tf')
 import keras.callbacks
-from keras import regularizers
+from keras.regularizers.Regularizer import kernel_regularizer,activity_regularizer
+
 import gazenetGenerator as gaze_gen
 from compare_predict_truth import compare1
 
@@ -71,13 +72,15 @@ class GazeNet():
             conv1 = Conv3D(filters, kernel_size, strides=(3, 3, 3), padding='valid', activation=None)(input)
             conv1 = BatchNormalization()(conv1)
             conv1 = MaxPooling3D(pool_size = (2,3,3), padding = 'valid')(conv1)
-            # conv1 = ActivityRegularization(l1=0.2, l2=0.3)(conv1)
+            conv1 = ActivityRegularization(l1=0.2, l2=0.3)
             conv1 = Dropout(0.5)(conv1)
             conv1 = Conv3D(filters, kernel_size, strides=(1, 1, 1), padding='valid', activation=None)(conv1)
             conv1 = MaxPooling3D(pool_size = (1,3,3),padding = 'valid')(conv1)
             conv1 = BatchNormalization()(conv1)
-            # conv1 = ActivityRegularization(l1=0.2, l2=0.3)(conv1)
+            conv1 = ActivityRegularization(l1=0.2, l2=0.3)
             conv1 = Dropout(0.5)(conv1)
+
+
             return conv1
         return f
 
@@ -101,7 +104,7 @@ class GazeNet():
     def create_model(self):
         image = Input(shape=(self.time_steps,256,256,3,))
         def input_reshape(image):
-            return tf.reshape(image,[-1,time_steps,256,256,3])
+            return tf.reshape(image,[self.batch_size*self.time_steps,time_steps,256,256,3])
             # return tf.reshape(image,[self.batch_size*self.time_steps,256,256,3])
         image_reshaped = Lambda(input_reshape)(image)
         # image_embedding = self.convolution()(image_reshaped)
