@@ -62,8 +62,8 @@ for i in range(num):
 		if not os.path.exists(img_name):
 			continue
 		# no output dir
-		if not os.path.exists(img_dst_dir):
-			os.makedirs(img_dst_dir)
+		# if not os.path.exists(img_dst_dir):
+		# 	os.makedirs(img_dst_dir)
 		copyfile(img_name, img_dst_name)
 
 	# save valid gaze txt
@@ -89,10 +89,10 @@ for i in range(num):
 				continue
 
 			add = ''
-			rep = np.where(name_list == name)[0]
-			for k in range(len(rep)):
-				if rep[k] == i:
-					add = '_' + str(k)
+			# rep = np.where(name_list == name)[0]
+			# for k in range(len(rep)):
+			# 	if rep[k] == i:
+			# 		add = '_' + str(k)
 
 			if s != 0:
 				add = '_1'
