@@ -158,9 +158,6 @@ class GazeNet_3D():
 
         # return suffix
 
-
-
-
 class GazeNet_2D():
     def __init__(self,learning_rate,time_steps,num_classes,batch_size):
         self.learning_rate = 0.0001
@@ -210,7 +207,6 @@ class GazeNet_2D():
         gaze_embedding = self.lstm()(gaze_reshaped)
         print(gaze_embedding)
         merged = Concatenate()([flatten, gaze_embedding])
-        hidden = Dense(6)(merged)
         def classify(input):
             return tf.nn.softmax(input)
         def mean_value(input):
@@ -237,5 +233,86 @@ class GazeNet_2D():
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
 
+        self.model.save_weights(save_path)
+        # self.model.save(save_path)
+
+class GazeNet_sequential_2D():
+    def __init__(self,learning_rate,time_steps,num_classes,batch_size):
+        self.learning_rate = 0.0001
+        self.batch_size = batch_size
+        self.time_steps = time_steps
+        self.model = self.create_model()
+
+    def convolution(self, kernel_size = 3):
+        def f(input):
+            filters = 96
+            conv1 = Conv2D(filters, kernel_size, strides=(3, 3), padding='valid', activation=None)(input)
+            conv1 = BatchNormalization()(conv1)
+            conv1 = MaxPooling2D(pool_size = 2, padding = 'valid')(conv1)
+            conv1 = Dropout(0.5)(conv1)
+            conv1 = Conv2D(filters, kernel_size, strides=(2, 2), padding='valid', activation=None)(conv1)
+            conv1 = BatchNormalization()(conv1)
+            conv1 = MaxPooling2D(pool_size = 2, padding = 'valid')(conv1)
+            conv1 = Dropout(0.5)(conv1)
+            conv1 = Conv2D(filters, kernel_size, strides=(2, 2), padding='valid', activation=None)(conv1)
+            conv1 = BatchNormalization()(conv1)
+            conv1 = MaxPooling2D(pool_size = 2, padding = 'valid')(conv1)
+            conv1 = Dropout(0.5)(conv1)
+            return conv1
+        return f
+
+    def lstm(self):
+        def f(input):
+            lstm = LSTM(128,return_sequences=True,stateful=True)(input)
+            lstm = Dropout(0.5)(lstm)
+            lstm = LSTM(128,return_sequences=True,stateful=True)(lstm)
+            return lstm
+        return f
+
+    def create_model(self):
+        image = Input(shape=(256,256,3,))
+        def input_reshape(image):
+            return tf.reshape(image,[self.batch_size*self.time_steps,256,256,3])
+        image_reshaped = Lambda(input_reshape)(image)
+        image_embedding = self.convolution()(image_reshaped)
+        flatten = Flatten()(image_embedding)
+
+        gaze = Input(shape=(3,))
+        def input_gaze_reshape(input):
+            return tf.reshape(input,[self.batch_size,self.time_steps,3])
+        gaze_reshaped = Lambda(input_gaze_reshape)(gaze)
+        print(gaze_reshaped)
+        gaze_embedding = self.lstm()(gaze_reshaped)
+        # print(gaze_embedding)
+        def lstm_gaze_reshaped(input):
+            return tf.reshape(input,[self.time_steps,128])
+        gaze_embedding=Lambda(lstm_gaze_reshaped)(gaze_embedding)
+        merged = Concatenate()([flatten, gaze_embedding])
+        hidden = Dense(6)(merged)
+        def classify(input):
+            return tf.nn.softmax(input)
+        def mean_value(input):
+            res = tf.reshape(input,[self.batch_size,self.time_steps,num_classes])
+            return tf.reduce_mean(res,1)
+        hidden = Dense(128,kernel_regularizer=regularizers.l2(0.01),
+                activity_regularizer=regularizers.l1(0.01))(merged)
+        hidden = Dropout(0.5)(hidden)
+        hidden = Dense(64,kernel_regularizer=regularizers.l2(0.01),
+                activity_regularizer=regularizers.l1(0.01))(hidden)
+        hidden = Dropout(0.5)(hidden)
+        hidden = Dense(6,kernel_regularizer=regularizers.l2(0.01),
+                activity_regularizer=regularizers.l1(0.01))(hidden)
+        hidden = Lambda(mean_value)(hidden)
+        print(hidden)
+        output = Lambda(classify)(hidden)
+
+        model = Model(input=[image, gaze], output=output)
+
+        adam = optimizers.Adam(lr = self.learning_rate)
+        model.compile(loss='categorical_crossentropy', optimizer='adam',metrics=['mae', 'acc'])
+        print(model.summary())
+        return model
+    def save_model_weights(self,save_path):
+		# Helper function to save your model / weights.
         self.model.save_weights(save_path)
         # self.model.save(save_path)
