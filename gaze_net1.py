@@ -39,7 +39,7 @@ origin_image_size = 360    # size of the origin image before the cropWithGaze
 img_size = 128    # size of the input image for network
 num_channel = 3
 steps_per_epoch=28*6
-epochs=5
+epochs=1000
 validation_step=20
 total_num_epoch = 101
 
@@ -66,15 +66,18 @@ class GazeNet():
         return f
     def convolution3D(self, kernel_size = 3):
         def f(input):
-            filters = 96
+            filters = 48
             conv1 = Conv3D(filters, kernel_size, strides=(3, 3, 3), padding='valid', activation=None)(input)
             conv1 = BatchNormalization()(conv1)
             conv1 = MaxPooling3D(pool_size = (2,3,3), padding = 'valid')(conv1)
             conv1 = Dropout(0.5)(conv1)
-            # conv1 = Conv3D(filters, kernel_size, strides=(2, 2, 2), padding='valid', activation=None)(conv1)
-            conv1 = Dropout(0.5)(conv1)
+            conv1 = BatchNormalization()(conv1)
             conv1 = Conv3D(filters, kernel_size, strides=(1, 1, 1), padding='valid', activation=None)(conv1)
             conv1 = MaxPooling3D(pool_size = (1,3,3),padding = 'valid')(conv1)
+            conv1 = BatchNormalization()(conv1)
+            conv1 = Dropout(0.5)(conv1)
+
+
             return conv1
         return f
 
@@ -83,6 +86,7 @@ class GazeNet():
             lstm = LSTM(128,return_sequences=True)(input)
             lstm = Dropout(0.5)(lstm)
             lstm = LSTM(128)(lstm)
+            lstm = Dropout(0.5)(lstm)
             return lstm
         return f
     def lstm2D(self):
@@ -90,6 +94,8 @@ class GazeNet():
             lstm = LSTM(128,return_sequences=True)(input)
             lstm = Dropout(0.5)(lstm)
             lstm = LSTM(128,return_sequences=True)(lstm)
+            lstm = Dropout(0.5)(lstm)
+
             return lstm
         return f
     def create_model(self):
@@ -134,6 +140,7 @@ class GazeNet():
         adam = optimizers.Adam(lr = self.learning_rate)
         model.compile(loss='categorical_crossentropy', optimizer='adam',metrics=['mae', 'acc'])
         print(model.summary())
+        # plot_model(model, to_file='model.png')
         return model
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
@@ -163,26 +170,35 @@ def parse_arguments():
 def train(model,pre_trained_model):
     if pre_trained_model != '':
         model.load_weights(pre_trained_model)
+    trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
+    train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
+                                                    batch_size=batch_size, crop=False,
+                                                    gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
+                                                   crop_with_gaze_size=128)
+    val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
+                                                  batch_size=batch_size, crop=False,
+                                                    gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
+                                                   crop_with_gaze_size=128)
     for i in range(total_num_epoch):
         save_path = 'test/model1/'+str(i) + '/'
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-
-        trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
-        train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
-                                                        batch_size=batch_size, crop=False,
-                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
-                                                       crop_with_gaze_size=128)
-        val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
-                                                      batch_size=batch_size, crop=False,
-                                                        gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
-                                                       crop_with_gaze_size=128)
-        [img_seq, gaze_seq], output = next(train_data)
-        print("fetch data!")
-        print(gaze_seq)
-        print(img_seq.shape)
-        print(gaze_seq.shape)
-        print(output.shape)
+        #
+        # trainGenerator = gaze_gen.GazeDataGenerator(validation_split=0.2)
+        # train_data = trainGenerator.flow_from_directory(dataset_path, subset='training',time_steps=time_steps,
+        #                                                 batch_size=batch_size, crop=False,
+        #                                                 gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
+        #                                                crop_with_gaze_size=128)
+        # val_data = trainGenerator.flow_from_directory(dataset_path, subset='validation', time_steps=time_steps,
+        #                                               batch_size=batch_size, crop=False,
+        #                                                 gaussian_std=0.01, time_skip=time_skip, crop_with_gaze=False,
+        #                                                crop_with_gaze_size=128)
+        # [img_seq, gaze_seq], output = next(train_data)
+        # print("fetch data!")
+        # print(gaze_seq)
+        # print(img_seq.shape)
+        # print(gaze_seq.shape)
+        # print(output.shape)
 
         # start training
         # checkpointsString = "models/" + 'weights.{epoch:02d}  -{val_loss:.2f}.hdf5'
