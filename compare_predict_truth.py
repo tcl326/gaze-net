@@ -1,5 +1,5 @@
 import numpy as np
-import gazenetGenerator2 as gaze_gen
+import gazenetGenerator as gaze_gen
 
 
 def compare(model, test_data, num_dataset):
