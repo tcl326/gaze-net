@@ -352,7 +352,7 @@ class GazeDataGenerator(object):
                             target_size=(256, 256), color_mode='rgb',
                             crop_with_gaze=False, crop_with_gaze_size=128,
                             classes=None, class_mode='categorical',
-                            batch_size=32, shuffle=True, seed=None,
+                            batch_size=1, shuffle=True, seed=None,
                             save_to_dir=None,
                             save_prefix='',
                             save_format='png',
@@ -905,7 +905,7 @@ class DirectoryIterator(Iterator):
                  target_size=(360, 360), color_mode='rgb',
                  crop_with_gaze=False, crop_with_gaze_size=128,
                  classes=None, class_mode='sequence',
-                 batch_size=32, shuffle=True, seed=None,
+                 batch_size=1, shuffle=True, seed=None,
                  data_format=None,
                  save_to_dir=None, save_prefix='', save_format='png',
                  follow_links=False,
@@ -1065,8 +1065,8 @@ class DirectoryIterator(Iterator):
         return img_seq
 
     def _get_batches_of_transformed_samples(self, index_array):
-        images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
-        gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
+        # images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
+        # gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
         # print(images_x.shape)
@@ -1083,8 +1083,8 @@ class DirectoryIterator(Iterator):
                 # print(gaussian.shape)
                 gaussian[:,0] = 0
                 gaze_sequence = gaze_sequence + gaussian
-            images_x[i] = img_sequence
-            gaze_x[i] = gaze_sequence
+            images_x = img_sequence
+            gaze_x = gaze_sequence
 
         if self.crop_with_gaze == True:
             # print("next, before calling crop with gaze")
@@ -1114,7 +1114,7 @@ class DirectoryIterator(Iterator):
             for i, label in enumerate(self.classes[index_array]):
                 batch_y[i, label] = 1.
         elif self.class_mode == 'sequence':
-            batch_y = labels_y
+            batch_y = label_sequence
         else:
             return images_x
         # print("before return")
