@@ -24,8 +24,7 @@ from keras.utils import plot_model
 from keras import backend as K
 K.set_image_dim_ordering('tf')
 import keras.callbacks
-from keras.regularizers.Regularizer import kernel_regularizer,activity_regularizer
-
+from keras import regularizers
 import gazenetGenerator as gaze_gen
 from compare_predict_truth import compare1
 
@@ -72,15 +71,13 @@ class GazeNet():
             conv1 = Conv3D(filters, kernel_size, strides=(3, 3, 3), padding='valid', activation=None)(input)
             conv1 = BatchNormalization()(conv1)
             conv1 = MaxPooling3D(pool_size = (2,3,3), padding = 'valid')(conv1)
-            conv1 = ActivityRegularization(l1=0.2, l2=0.3)
+            # conv1 = ActivityRegularization(l1=0.2, l2=0.3)(conv1)
             conv1 = Dropout(0.5)(conv1)
             conv1 = Conv3D(filters, kernel_size, strides=(1, 1, 1), padding='valid', activation=None)(conv1)
             conv1 = MaxPooling3D(pool_size = (1,3,3),padding = 'valid')(conv1)
             conv1 = BatchNormalization()(conv1)
-            conv1 = ActivityRegularization(l1=0.2, l2=0.3)
+            # conv1 = ActivityRegularization(l1=0.2, l2=0.3)(conv1)
             conv1 = Dropout(0.5)(conv1)
-
-
             return conv1
         return f
 
