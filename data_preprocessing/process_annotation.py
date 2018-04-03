@@ -79,7 +79,10 @@ for i in range(num):
 	gaze_list_ori = gaze_src_file.readlines()
 	gaze_src_file.close()
 	gaze_list = gaze_list_ori[0:3*(hand_count-2)]
-	gaze_list = [float(gaze_list[i]) for k in range(len(gaze_list))]
+	gaze_list = [float(gaze_list[k]) for k in range(len(gaze_list))]
+	gaze_list = np.reshape(np.array(gaze_list), (-1, 3))
+	print(gaze_list.shape)
+
 	print('length of gaze list')
 	print(len(gaze_list)//3)
 	# print(len(gaze_list))
