@@ -9,7 +9,7 @@ from keras.engine.topology import Input
 from keras import optimizers
 from keras.utils.np_utils import to_categorical
 from keras.models import Sequential, load_model
-from keras.layers import Dropout, Flatten
+from keras.layers import Dropout, Flatten, ActivityRegularization
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dropout,Conv3D,MaxPooling3D
 from keras.layers import Activation, BatchNormalization, MaxPooling2D, Concatenate
 import time,argparse
@@ -24,6 +24,7 @@ from keras.utils import plot_model
 from keras import backend as K
 K.set_image_dim_ordering('tf')
 import keras.callbacks
+from keras.regularizers.Regularizer import kernel_regularizer,activity_regularizer
 
 import gazenetGenerator as gaze_gen
 from compare_predict_truth import compare1
@@ -56,6 +57,7 @@ class GazeNet():
             filters = 96
             conv1 = Conv2D(filters, kernel_size, strides=(3, 3), padding='valid', activation=None)(input)
             conv1 = BatchNormalization()(conv1)
+            conv1 = ActivityRegularization(l1=0.2, l2=0.3)
             conv1 = MaxPooling2D(pool_size = 2, padding = 'valid')(conv1)
             conv1 = Dropout(0.5)(conv1)
             conv1 = Conv2D(filters, kernel_size, strides=(2, 2), padding='valid', activation=None)(conv1)
@@ -124,7 +126,7 @@ class GazeNet():
 
         merged = Concatenate()([flatten, gaze_embedding])
         # print(merged)
-        hidden = Dense(6)(merged)
+        hidden = Dense(6, kernel_regularizer=regularizers.l2(0.01),activity_regularizer=regularizers.l1(0.01))(merged)
         # print(hidden)
         def classify(input):
             return tf.nn.softmax(input)
