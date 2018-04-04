@@ -841,7 +841,6 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
     label_sequence = load_label_sequence(interaction_path)
 
     start = 0
-    # print(interaction_path)
     for i in xrange(start, len(fnames), time_skip):
         root, fname = fnames[i]
         img_path = os.path.join(root, fname)
@@ -849,6 +848,15 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         img, width, height = load_img(img_path, grayscale=grayscale, target_size=target_size, interpolation=interpolation, crop=crop)
         x = img_to_array(img, data_format=None)
         img_sequence.append(x)
+    print(interaction_path)
+    print("gaze")
+    print(gaze_sequence[start:len(fnames):time_skip, :].shape)
+    print("label")
+    print(label_sequence[start:len(fnames):time_skip, :].shape)
+    print("image")
+    print(len(img_sequence))
+    if label_sequence[start:len(fnames):time_skip, :].shape[0] != len(img_sequence):
+        img_sequence.pop()
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
     return np.array(img_sequence), gaze_sequence[start:len(fnames):time_skip, :], label_sequence[start:len(fnames):time_skip, :]
 
@@ -1071,6 +1079,8 @@ class DirectoryIterator(Iterator):
         # build batch of image data
         # print(images_x.shape)
         # print(gaze_x.shape)
+        # print("idnex array")
+        # print(index_array)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
             img_sequence, gaze_sequence, label_sequence = load_interaction_sequence(intername, self.white_list_formats,

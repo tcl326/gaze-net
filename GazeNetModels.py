@@ -24,7 +24,6 @@ from keras import backend as K
 K.set_image_dim_ordering('tf')
 import keras.callbacks
 from keras import regularizers
-
 import gazenetGenerator as gaze_gen
 
 # global param
@@ -32,7 +31,7 @@ dataset_path = '../gaze-net/gaze_dataset'
 learning_rate = 0.0001
 time_steps = 32
 num_classes = 6
-batch_size = 4
+batch_size = 1
 time_skip = 2
 origin_image_size = 360    # size of the origin image before the cropWithGaze
 img_size = 128    # size of the input image for network
@@ -148,7 +147,7 @@ class GazeNet_3D():
         adam = optimizers.Adam(lr = self.learning_rate)
         model.compile(loss='categorical_crossentropy', optimizer='adam',metrics=['mae', 'acc'])
         print(model.summary())
-        # plot_model(model, to_file='model.png')
+        plot_model(model,to_file='model_3D.png',show_shapes=True, show_layer_names=True)
         return model
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
@@ -207,28 +206,32 @@ class GazeNet_2D():
         gaze_embedding = self.lstm()(gaze_reshaped)
         print(gaze_embedding)
         merged = Concatenate()([flatten, gaze_embedding])
+        def reshape_merge(input):
+            return tf.reshape(input,[-1,self.time_steps,512])
+        merged = Lambda(reshape_merge)(merged)
+        merged = Flatten()(merged)
         def classify(input):
             return tf.nn.softmax(input)
         def mean_value(input):
             res = tf.reshape(input,[self.batch_size,self.time_steps,num_classes])
             return tf.reduce_mean(res,1)
-        hidden = Dense(128,kernel_regularizer=regularizers.l2(0.01),
+        hidden = Dense(4096,kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(merged)
         hidden = Dropout(0.5)(hidden)
-        hidden = Dense(64,kernel_regularizer=regularizers.l2(0.01),
+        hidden = Dense(4096,kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(hidden)
         hidden = Dropout(0.5)(hidden)
         hidden = Dense(6,kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(hidden)
-        hidden = Lambda(mean_value)(hidden)
         output = Lambda(classify)(hidden)
-
         model = Model(input=[image, gaze], output=output)
 
 
         adam = optimizers.Adam(lr = self.learning_rate)
         model.compile(loss='categorical_crossentropy', optimizer='adam',metrics=['mae', 'acc'])
         print(model.summary())
+        # plot_model(model,to_file='model_2D.png',show_shapes=True, show_layer_names=True)
+
         return model
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
@@ -272,45 +275,55 @@ class GazeNet_sequential_2D():
     def create_model(self):
         image = Input(shape=(256,256,3,))
         def input_reshape(image):
-            return tf.reshape(image,[self.batch_size*self.time_steps,256,256,3])
+            return tf.reshape(image,[-1,256,256,3])
         image_reshaped = Lambda(input_reshape)(image)
         image_embedding = self.convolution()(image_reshaped)
         flatten = Flatten()(image_embedding)
+        def flatten_reshape(input):
+            return tf.reshape(input,[self.batch_size,-1,384])
+        flatten = Lambda(flatten_reshape)(flatten)
 
         gaze = Input(shape=(3,))
         def input_gaze_reshape(input):
-            return tf.reshape(input,[self.batch_size,self.time_steps,3])
+            return tf.reshape(input,[self.batch_size,-1,3])
         gaze_reshaped = Lambda(input_gaze_reshape)(gaze)
-        print(gaze_reshaped)
+        # print(gaze_reshaped)
         gaze_embedding = self.lstm()(gaze_reshaped)
-        # print(gaze_embedding)
-        def lstm_gaze_reshaped(input):
-            return tf.reshape(input,[self.time_steps,128])
-        gaze_embedding=Lambda(lstm_gaze_reshaped)(gaze_embedding)
+        # # print(gaze_embedding)
+        # def lstm_gaze_reshaped(input):
+        #     return tf.reshape(input,[self.time_steps,128])
+        # gaze_embedding=Lambda(lstm_gaze_reshaped)(gaze_embedding)
         merged = Concatenate()([flatten, gaze_embedding])
-        hidden = Dense(6)(merged)
+        # merged = K.squeeze(merged,axis=0)
+        # hidden = Dense(6)(merged)
+        def reshape_merge(input):
+            return tf.reshape(input,[-1,512])
+        merged = Lambda(reshape_merge)(merged)
         def classify(input):
             return tf.nn.softmax(input)
-        def mean_value(input):
-            res = tf.reshape(input,[self.batch_size,self.time_steps,num_classes])
-            return tf.reduce_mean(res,1)
-        hidden = Dense(128,kernel_regularizer=regularizers.l2(0.01),
+        # def mean_value(input):
+        #     res = tf.reshape(input,[self.batch_size,self.time_steps,num_classes])
+        #     return tf.reduce_mean(res,1)
+        hidden = Dense(512,kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(merged)
         hidden = Dropout(0.5)(hidden)
-        hidden = Dense(64,kernel_regularizer=regularizers.l2(0.01),
+        hidden = Dense(512,kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(hidden)
         hidden = Dropout(0.5)(hidden)
-        hidden = Dense(6,kernel_regularizer=regularizers.l2(0.01),
+        hidden = Dense(5,kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(hidden)
-        hidden = Lambda(mean_value)(hidden)
-        print(hidden)
+        # hidden = Lambda(mean_value)(hidden)
+        # print(hidden)
         output = Lambda(classify)(hidden)
-
-        model = Model(input=[image, gaze], output=output)
+        def reshape_output(input):
+            return tf.reshape(input,[1,-1,5])
+        # output = Lambda(reshape_output)(output)
+        model = Model(input=[image,gaze], output=output)
 
         adam = optimizers.Adam(lr = self.learning_rate)
         model.compile(loss='categorical_crossentropy', optimizer='adam',metrics=['mae', 'acc'])
         print(model.summary())
+        plot_model(model,to_file='model_sequencial_2D.png',show_shapes=True, show_layer_names=True)
         return model
     def save_model_weights(self,save_path):
 		# Helper function to save your model / weights.
