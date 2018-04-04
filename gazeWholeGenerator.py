@@ -345,7 +345,7 @@ class GazeDataGenerator(object):
     #         subset=subset)
 
     def flow_from_directory(self, directory,
-                            time_steps=32,
+                            time_steps=500,
                             time_skip=1,
                             crop=True,
                             gaussian_std=0.01,
@@ -708,8 +708,8 @@ def _iter_valid_interaction_in_directory(directory, white_list_formats, time_ste
     interactions = [os.path.join(directory, dirname) for dirname in os.listdir(os.path.join(directory))]
     # print(interactions)
     for inter in interactions:
-        if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) > time_steps*time_skip:
-            valid_interactions.append(inter)
+        # if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) > time_steps*time_skip:
+        valid_interactions.append(inter)
     return valid_interactions
 
 def _count_valid_interaction_number_in_directory(directory, white_list_formats, time_steps, time_skip, split, follow_links):
@@ -833,15 +833,21 @@ def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, tar
     gaze_seq[:, 2] = gaze_seq[:, 2].astype(int)
     return gaze_seq
 
-def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=None, crop=True, interpolation='nearest'):
+def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=500, time_skip=1, target_size=None, crop=True, interpolation='nearest'):
     img_sequence = []
 
     fnames = list(_iter_valid_files(interaction_path, white_list_formats, False))
     gaze_sequence = load_gaze_sequence(interaction_path)
     label_sequence = load_label_sequence(interaction_path)
 
-    start = 0
-    for i in xrange(start, len(fnames), time_skip):
+    if len(fnames) > time_steps*time_skip:
+        start = np.random.choice(len(fnames) - time_steps * time_skip, size=1)[0]
+        end = time_steps*time_skip
+    else:
+        end = len(fnames)
+        start = 0
+
+    for i in xrange(start, start+end, time_skip):
         root, fname = fnames[i]
         img_path = os.path.join(root, fname)
         # print (img_path)
@@ -850,15 +856,15 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         img_sequence.append(x)
     print(interaction_path)
     print("gaze")
-    print(gaze_sequence[start:len(fnames):time_skip, :].shape)
+    print(gaze_sequence[start:start+end:time_skip, :].shape)
     print("label")
-    print(label_sequence[start:len(fnames):time_skip, :].shape)
+    print(label_sequence[start:start+end:time_skip, :].shape)
     print("image")
     print(len(img_sequence))
-    if label_sequence[start:len(fnames):time_skip, :].shape[0] != len(img_sequence):
+    if label_sequence[start:start+end:time_skip, :].shape[0] != len(img_sequence):
         img_sequence.pop()
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
-    return np.array(img_sequence), gaze_sequence[start:len(fnames):time_skip, :], label_sequence[start:len(fnames):time_skip, :]
+    return np.array(img_sequence), gaze_sequence[start:start+end:time_skip, :], label_sequence[start:start+end:time_skip, :]
 
 class DirectoryIterator(Iterator):
     """Iterator capable of reading images from a directory on disk.
@@ -907,7 +913,7 @@ class DirectoryIterator(Iterator):
 
     def __init__(self, directory, image_data_generator,
                  time_skip=1,
-                 time_steps=32,
+                 time_steps=500,
                  crop=True,
                  gaussian_std=0.01,
                  target_size=(360, 360), color_mode='rgb',
