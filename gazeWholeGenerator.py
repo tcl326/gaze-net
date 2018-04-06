@@ -351,7 +351,7 @@ class GazeDataGenerator(object):
                             gaussian_std=0.01,
                             target_size=(256, 256), color_mode='rgb',
                             crop_with_gaze=False, crop_with_gaze_size=128,
-                            classes=None, class_mode='categorical',
+                            classes=None, class_mode='sequence',
                             batch_size=1, shuffle=True, seed=None,
                             save_to_dir=None,
                             save_prefix='',
@@ -854,13 +854,13 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         img, width, height = load_img(img_path, grayscale=grayscale, target_size=target_size, interpolation=interpolation, crop=crop)
         x = img_to_array(img, data_format=None)
         img_sequence.append(x)
-    print(interaction_path)
-    print("gaze")
-    print(gaze_sequence[start:start+end:time_skip, :].shape)
-    print("label")
-    print(label_sequence[start:start+end:time_skip, :].shape)
-    print("image")
-    print(len(img_sequence))
+    # print(interaction_path)
+    # print("gaze")
+    # print(gaze_sequence[start:start+end:time_skip, :].shape)
+    # print("label")
+    # print(label_sequence[start:start+end:time_skip, :])
+    # print("image")
+    # print(len(img_sequence))
     if label_sequence[start:start+end:time_skip, :].shape[0] != len(img_sequence):
         img_sequence.pop()
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
@@ -1130,7 +1130,9 @@ class DirectoryIterator(Iterator):
             for i, label in enumerate(self.classes[index_array]):
                 batch_y[i, label] = 1.
         elif self.class_mode == 'sequence':
-            batch_y = label_sequence
+            batch_y = np.zeros((len(label_sequence), self.num_classes), dtype=K.floatx())
+            for i, label in enumerate(label_sequence):
+                batch_y[i, int(label[0])] = 1.
         else:
             return images_x
         # print("before return")
