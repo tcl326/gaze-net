@@ -102,7 +102,7 @@ def train(model,args):
                         validation_data=val_data, validation_steps=validation_step, callbacks=[reduce_lr],shuffle=False)
         confusion_matrix_train = np.zeros((num_classes,num_classes))
         pdb.set_trace()
-        print(convout1_f)
+        # print(convout1_f)
         for i in range(28):
             [img_seq,gaze_seq],label = next(train_data)
             y = model.predict([img_seq,gaze_seq],batch_size = 1)
@@ -112,7 +112,9 @@ def train(model,args):
                 confusion_matrix_train[predicted_label[j],grounded_label[j]] = confusion_matrix_train[predicted_label[j],grounded_label[j]]+1
                 if predicted_label[j]!=grounded_label[j]:
                     print(predicted_label,grounded_label)
-
+        print("confusion_matrix_train")
+        print(confusion_matrix_train)
+        pdb.set_trace()
         confusion_matrix_val = np.zeros((num_classes,num_classes))
         for i in range(7):
             [img_seq,gaze_seq],label = next(val_data)
@@ -123,10 +125,6 @@ def train(model,args):
                 confusion_matrix_val[predicted_label[j],grounded_label[j]] = confusion_matrix_val[predicted_label[j],grounded_label[j]]+1
                 if predicted_label[j]!=grounded_label[j]:
                     print(predicted_label,grounded_label)
-
-
-        print("confusion_matrix_train")
-        print(confusion_matrix_train)
         print("confusion_matrix_val")
         print(confusion_matrix_val)
 
