@@ -1,3 +1,4 @@
+
 """Fairly basic set of tools for real-time data augmentation on image data.
 Can easily be extended to include new transformations,
 new preprocessing methods, etc...
@@ -345,14 +346,14 @@ class GazeDataGenerator(object):
     #         subset=subset)
 
     def flow_from_directory(self, directory,
-                            time_steps=32,
+                            time_steps=500,
                             time_skip=1,
                             crop=True,
                             gaussian_std=0.01,
                             target_size=(256, 256), color_mode='rgb',
                             crop_with_gaze=False, crop_with_gaze_size=128,
-                            classes=None, class_mode='categorical',
-                            batch_size=32, shuffle=True, seed=None,
+                            classes=None, class_mode='sequence',
+                            batch_size=1, shuffle=True, seed=None,
                             save_to_dir=None,
                             save_prefix='',
                             save_format='png',
@@ -708,8 +709,8 @@ def _iter_valid_interaction_in_directory(directory, white_list_formats, time_ste
     interactions = [os.path.join(directory, dirname) for dirname in os.listdir(os.path.join(directory))]
     # print(interactions)
     for inter in interactions:
-        if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) > time_steps*time_skip:
-            valid_interactions.append(inter)
+        # if len(list(_iter_valid_files(inter, white_list_formats, follow_links))) > time_steps*time_skip:
+        valid_interactions.append(inter)
     return valid_interactions
 
 def _count_valid_interaction_number_in_directory(directory, white_list_formats, time_steps, time_skip, split, follow_links):
@@ -807,12 +808,16 @@ def _list_valid_interactions_in_directory(directory, white_list_formats, time_st
 
     return classes, internames
 
-def load_gaze_sequence(interaction_path, gaze_file_name='gaze.txt'):
-    results = []
-    with open(os.path.join(interaction_path, gaze_file_name)) as inputfile:
-        for line in inputfile:
-            results.append(float(line))
-    return np.array(results).reshape((-1,3))
+
+def load_label_sequence(interaction_path, label_file_name='label.npy'):
+    # Load the npy file that contains label data
+    label_sequence = np.load(os.path.join(interaction_path, label_file_name))
+    return label_sequence
+
+def load_gaze_sequence(interaction_path, gaze_file_name='gaze.npy'):
+    # Load the npy file that contains gaze data
+    gaze_sequence = np.load(os.path.join(interaction_path, gaze_file_name))
+    return gaze_sequence
 
 def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, target_size=None):
     # print(gaze_seq.shape)
@@ -829,32 +834,39 @@ def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, tar
     gaze_seq[:, 2] = gaze_seq[:, 2].astype(int)
     return gaze_seq
 
-def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=None, crop=True, interpolation='nearest'):
+def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=500, time_skip=1, target_size=None, crop=True, interpolation='nearest'):
     img_sequence = []
+
     fnames = list(_iter_valid_files(interaction_path, white_list_formats, False))
     gaze_sequence = load_gaze_sequence(interaction_path)
-    start = np.random.choice(len(fnames) - time_steps * time_skip, size=1)[0]
-    # print(interaction_path)
-    for i in xrange(start, start+time_steps*time_skip, time_skip):
+    label_sequence = load_label_sequence(interaction_path)
+
+    if len(fnames) > time_steps*time_skip:
+        start = np.random.choice(len(fnames) - time_steps * time_skip, size=1)[0]
+        end = time_steps*time_skip
+    else:
+        end = len(fnames)
+        start = 0
+
+    for i in xrange(start, start+end, time_skip):
         root, fname = fnames[i]
         img_path = os.path.join(root, fname)
         # print (img_path)
         img, width, height = load_img(img_path, grayscale=grayscale, target_size=target_size, interpolation=interpolation, crop=crop)
         x = img_to_array(img, data_format=None)
         img_sequence.append(x)
-    print(interaction_path)
+    # print(interaction_path)
     # print("gaze")
-    # print(gaze_sequence[start:start+time_steps*time_skip:time_skip, :].shape)
+    # print(gaze_sequence[start:start+end:time_skip, :].shape)
     # print("label")
-    # print(label_sequence[start:start+time_steps*time_skip:time_skip, :].shape)
+    # print(label_sequence[start:start+end:time_skip, :].shape)
     # print("image")
     # print(len(img_sequence))
+    if label_sequence[start:start+end:time_skip, :].shape[0] != len(img_sequence):
+        img_sequence.pop()
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
-    gaze_sequence = gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
-    if gaze_sequence.shape[0] < 32:
-        print(interaction_path)
-        raise NameError(interaction_path)
-    return np.array(img_sequence), gaze_sequence
+    assert len(img_sequence) <= time_steps
+    return np.array(img_sequence), gaze_sequence[start:start+end:time_skip, :], label_sequence[start:start+end:time_skip, :]
 
 class DirectoryIterator(Iterator):
     """Iterator capable of reading images from a directory on disk.
@@ -903,13 +915,13 @@ class DirectoryIterator(Iterator):
 
     def __init__(self, directory, image_data_generator,
                  time_skip=1,
-                 time_steps=32,
+                 time_steps=500,
                  crop=True,
                  gaussian_std=0.01,
                  target_size=(360, 360), color_mode='rgb',
                  crop_with_gaze=False, crop_with_gaze_size=128,
-                 classes=None, class_mode='categorical',
-                 batch_size=32, shuffle=True, seed=None,
+                 classes=None, class_mode='sequence',
+                 batch_size=1, shuffle=True, seed=None,
                  data_format=None,
                  save_to_dir=None, save_prefix='', save_format='png',
                  follow_links=False,
@@ -937,10 +949,10 @@ class DirectoryIterator(Iterator):
                 self.image_shape = (1,) + self.target_size
         self.classes = classes
         if class_mode not in {'categorical', 'binary', 'sparse',
-                              'input', None}:
+                              'input', 'sequence', None}:
             raise ValueError('Invalid class_mode:', class_mode,
                              '; expected one of "categorical", '
-                             '"binary", "sparse", "input"'
+                             '"binary", "sparse", "input", "sequence"'
                              ' or None.')
         self.class_mode = class_mode
         self.save_to_dir = save_to_dir
@@ -1008,10 +1020,11 @@ class DirectoryIterator(Iterator):
         self.internames = []
         for res in results:
             classes, internames = res.get()
+            print(classes)
             self.dataset_dict[classes[0]] = internames
             # print(self.classes)
             # print(classes)
-            # print(internames)
+
             class_size = len(classes)
             if class_size < self.min_class_size:
                 self.min_class_size = class_size
@@ -1030,12 +1043,8 @@ class DirectoryIterator(Iterator):
     def reset(self):
         # print('newfile')
         self.internames = []
-        self.classes = np.zeros((self.data_set_size,), dtype='int32')
-        i = 0
         for d in self.dataset_dict:
             self.internames += list(np.random.choice(self.dataset_dict[d], size=(self.min_class_size), replace=False))
-            self.classes[i:i+self.min_class_size] = d
-            i += self.min_class_size
 
         self.batch_index = 0
 
@@ -1072,17 +1081,17 @@ class DirectoryIterator(Iterator):
         return img_seq
 
     def _get_batches_of_transformed_samples(self, index_array):
-        images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
-        gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
+        # images_x = np.zeros((len(index_array),) + (self.time_steps, ) + self.image_shape, dtype=K.floatx())
+        # gaze_x = np.zeros((len(index_array),) + (self.time_steps, ) + (3,), dtype=K.floatx())
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
         # print(images_x.shape)
         # print(gaze_x.shape)
-        # print("index_array")
+        # print("idnex array")
         # print(index_array)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
-            img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats,
+            img_sequence, gaze_sequence, label_sequence = load_interaction_sequence(intername, self.white_list_formats,
                                                                     grayscale=False, time_steps=self.time_steps,
                                                                     time_skip=self.time_skip, target_size=self.target_size,
                                                                     crop=self.crop, interpolation='nearest')
@@ -1092,8 +1101,8 @@ class DirectoryIterator(Iterator):
                 # print(gaussian.shape)
                 gaussian[:,0] = 0
                 gaze_sequence = gaze_sequence + gaussian
-            images_x[i] = img_sequence
-            gaze_x[i] = gaze_sequence
+            images_x = img_sequence
+            gaze_x = gaze_sequence
 
         if self.crop_with_gaze == True:
             # print("next, before calling crop with gaze")
@@ -1122,6 +1131,11 @@ class DirectoryIterator(Iterator):
             batch_y = np.zeros((len(images_x), self.num_classes), dtype=K.floatx())
             for i, label in enumerate(self.classes[index_array]):
                 batch_y[i, label] = 1.
+        elif self.class_mode == 'sequence':
+            # batch_y = label_sequence
+            batch_y = np.zeros((len(label_sequence), self.num_classes+1), dtype=K.floatx())
+            for i, label in enumerate(label_sequence):
+                batch_y[i, int(label[0])] = 1
         else:
             return images_x
         # print("before return")
