@@ -842,6 +842,13 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         img, width, height = load_img(img_path, grayscale=grayscale, target_size=target_size, interpolation=interpolation, crop=crop)
         x = img_to_array(img, data_format=None)
         img_sequence.append(x)
+    print(interaction_path)
+    # print("gaze")
+    # print(gaze_sequence[start:start+time_steps*time_skip:time_skip, :].shape)
+    # print("label")
+    # print(label_sequence[start:start+time_steps*time_skip:time_skip, :].shape)
+    # print("image")
+    # print(len(img_sequence))
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
     gaze_sequence = gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
     if gaze_sequence.shape[0] < 32:
@@ -1067,6 +1074,8 @@ class DirectoryIterator(Iterator):
         # build batch of image data
         # print(images_x.shape)
         # print(gaze_x.shape)
+        # print("index_array")
+        # print(index_array)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
             img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats,

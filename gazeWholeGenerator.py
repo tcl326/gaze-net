@@ -1,3 +1,4 @@
+
 """Fairly basic set of tools for real-time data augmentation on image data.
 Can easily be extended to include new transformations,
 new preprocessing methods, etc...
@@ -858,12 +859,13 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
     # print("gaze")
     # print(gaze_sequence[start:start+end:time_skip, :].shape)
     # print("label")
-    # print(label_sequence[start:start+end:time_skip, :])
+    # print(label_sequence[start:start+end:time_skip, :].shape)
     # print("image")
     # print(len(img_sequence))
     if label_sequence[start:start+end:time_skip, :].shape[0] != len(img_sequence):
         img_sequence.pop()
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
+    assert len(img_sequence) <= time_steps
     return np.array(img_sequence), gaze_sequence[start:start+end:time_skip, :], label_sequence[start:start+end:time_skip, :]
 
 class DirectoryIterator(Iterator):
@@ -1130,9 +1132,10 @@ class DirectoryIterator(Iterator):
             for i, label in enumerate(self.classes[index_array]):
                 batch_y[i, label] = 1.
         elif self.class_mode == 'sequence':
-            batch_y = np.zeros((len(label_sequence), self.num_classes), dtype=K.floatx())
+            # batch_y = label_sequence
+            batch_y = np.zeros((len(label_sequence), self.num_classes+1), dtype=K.floatx())
             for i, label in enumerate(label_sequence):
-                batch_y[i, int(label[0])] = 1.
+                batch_y[i, int(label[0])] = 1
         else:
             return images_x
         # print("before return")
