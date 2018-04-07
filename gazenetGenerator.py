@@ -1030,8 +1030,12 @@ class DirectoryIterator(Iterator):
     def reset(self):
         # print('newfile')
         self.internames = []
+        self.classes = np.zeros((self.data_set_size,), dtype='int32')
+        i = 0
         for d in self.dataset_dict:
             self.internames += list(np.random.choice(self.dataset_dict[d], size=(self.min_class_size), replace=False))
+            self.classes[i:i+self.min_class_size] = d
+            i += self.min_class_size
 
         self.batch_index = 0
 
