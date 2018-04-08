@@ -866,6 +866,8 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
         img_sequence.pop()
     gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
     assert len(img_sequence) <= time_steps
+    # print('label sequence shape')
+    # print(label_sequence.shape)
     return np.array(img_sequence), gaze_sequence[start:start+end:time_skip, :], label_sequence[start:start+end:time_skip, :]
 
 class DirectoryIterator(Iterator):
@@ -949,7 +951,7 @@ class DirectoryIterator(Iterator):
                 self.image_shape = (1,) + self.target_size
         self.classes = classes
         if class_mode not in {'categorical', 'binary', 'sparse',
-                              'input', 'sequence', None}:
+                              'input', 'sequence', 'sequence_pytorch', None}:
             raise ValueError('Invalid class_mode:', class_mode,
                              '; expected one of "categorical", '
                              '"binary", "sparse", "input", "sequence"'
@@ -1091,6 +1093,7 @@ class DirectoryIterator(Iterator):
         # print(index_array)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
+            print(intername)
             img_sequence, gaze_sequence, label_sequence = load_interaction_sequence(intername, self.white_list_formats,
                                                                     grayscale=False, time_steps=self.time_steps,
                                                                     time_skip=self.time_skip, target_size=self.target_size,
@@ -1136,6 +1139,8 @@ class DirectoryIterator(Iterator):
             batch_y = np.zeros((len(label_sequence), self.num_classes+1), dtype=K.floatx())
             for i, label in enumerate(label_sequence):
                 batch_y[i, int(label[0])] = 1
+        elif self.class_mode == 'sequence_pytorch':
+            batch_y = np.squeeze(label_sequence, axis=1)
         else:
             return images_x
         # print("before return")
