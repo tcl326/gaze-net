@@ -17,6 +17,7 @@ import threading
 import warnings
 import multiprocessing.pool
 from functools import partial
+import pdb
 
 from keras import backend as K
 from keras.utils.data_utils import Sequence
@@ -814,6 +815,26 @@ def load_gaze_sequence(interaction_path, gaze_file_name='gaze.txt'):
             results.append(float(line))
     return np.array(results).reshape((-1,3))
 
+def modify_gaze_sequence_correct(gaze_seq, ori_width=640, ori_height=360, crop=True, target_size=None):
+    # print(gaze_seq.shape)
+    if crop == True:
+        # print("crop gaze")
+        gaze_seq[:, 2] = 1 - gaze_seq[:, 2]
+        gaze_seq[:, 1] *= ori_width
+        gaze_seq[:, 2] *= ori_height
+        delta = ori_width - ori_height
+        gaze_seq[:, 1] -= delta
+        if target_size != None or target_size != (ori_height, ori_height):
+            gaze_seq[:, 1] *= target_size[1] / float(ori_width)
+            gaze_seq[:, 2] *= target_size[0] / float(ori_height)
+    else:
+        gaze_seq[:, 2] = 1 - gaze_seq[:, 2]
+        gaze_seq[:, 1] *= target_size[1]
+        gaze_seq[:, 2] *= target_size[2]
+    gaze_seq[:, 1] = gaze_seq[:, 1].astype(int)
+    gaze_seq[:, 2] = gaze_seq[:, 2].astype(int)
+    return gaze_seq
+
 def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, target_size=None):
     # print(gaze_seq.shape)
     gaze_seq[:, 1] *= ori_width
@@ -831,6 +852,7 @@ def modify_gaze_sequence(gaze_seq, ori_width=640, ori_height=360, crop=True, tar
 
 def load_interaction_sequence(interaction_path, white_list_formats, grayscale=False, time_steps=32, time_skip=1, target_size=None, crop=True, interpolation='nearest'):
     img_sequence = []
+    # pdb.set_trace()
     fnames = list(_iter_valid_files(interaction_path, white_list_formats, False))
     gaze_sequence = load_gaze_sequence(interaction_path)
     start = np.random.choice(len(fnames) - time_steps * time_skip, size=1)[0]
@@ -849,7 +871,7 @@ def load_interaction_sequence(interaction_path, white_list_formats, grayscale=Fa
     # print(label_sequence[start:start+time_steps*time_skip:time_skip, :].shape)
     # print("image")
     # print(len(img_sequence))
-    gaze_sequence = modify_gaze_sequence(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
+    gaze_sequence = modify_gaze_sequence_correct(gaze_sequence, ori_width=width, ori_height=height, crop=crop, target_size=target_size)
     gaze_sequence = gaze_sequence[start:start+time_steps*time_skip:time_skip, :]
     if gaze_sequence.shape[0] < 32:
         print(interaction_path)
@@ -993,6 +1015,7 @@ class DirectoryIterator(Iterator):
 
         print('Found %d Interactions belonging to %d classes.' % (self.samples, self.num_classes))
 
+        # pdb.set_trace()
         # second, build an index of the images in the different class subfolders
         results = []
         self.dataset_dict = {}
@@ -1004,25 +1027,33 @@ class DirectoryIterator(Iterator):
             results.append(pool.apply_async(_list_valid_interactions_in_directory,
                                             (dirpath, self.white_list_formats, self.time_steps, self.time_skip, split,
                                              self.class_indices, follow_links)))
+        # pdb.set_trace()
         self.min_class_size = float('inf')
         self.internames = []
         for res in results:
+            # pdb.set_trace()
             classes, internames = res.get()
             self.dataset_dict[classes[0]] = internames
             # print(self.classes)
             # print(classes)
             # print(internames)
             class_size = len(classes)
+            # print(class_size)
+
             if class_size < self.min_class_size:
                 self.min_class_size = class_size
             self.classes[i:i + len(classes)] = classes
             self.internames += internames
             i += len(classes)
-
+            # print(i)
+        # print(self.min_class_size,self.num_classes)
         self.data_set_size = self.min_class_size * self.num_classes
+        print(self.data_set_size)
 
         pool.close()
+        print("close finish")
         pool.join()
+        print(self.data_set_size)
         super(DirectoryIterator, self).__init__(self.data_set_size, batch_size, shuffle, seed)
         # self.internames = None
         print('There are %d Interactions per class for to %d classes.' % (self.min_class_size, self.num_classes))
@@ -1044,8 +1075,8 @@ class DirectoryIterator(Iterator):
         time_steps = self.time_steps
         img_size = self.crop_with_gaze_size
         num_channel = 3
-        # print("get into _crop_with_gaze")
-        # print((batch_size,time_steps,img_size,img_size,num_channel))
+        print("get into _crop_with_gaze")
+        print((batch_size,time_steps,img_size,img_size,num_channel))
         img_seq = np.zeros((batch_size,time_steps,img_size,img_size,num_channel), dtype=int)
         for i in range(batch_size):
             for j in range(time_steps):
@@ -1082,6 +1113,7 @@ class DirectoryIterator(Iterator):
         # print(index_array)
         for i, j in enumerate(index_array):
             intername = self.internames[j]
+            # pdb.set_trace()
             img_sequence, gaze_sequence = load_interaction_sequence(intername, self.white_list_formats,
                                                                     grayscale=False, time_steps=self.time_steps,
                                                                     time_skip=self.time_skip, target_size=self.target_size,
@@ -1135,6 +1167,7 @@ class DirectoryIterator(Iterator):
         # Returns
             The next batch.
         """
+        # pdb.set_trace()
         with self.lock:
             index_array = next(self.index_generator)
         # The transformation of images is not under thread lock
